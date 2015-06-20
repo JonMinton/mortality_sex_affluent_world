@@ -54,9 +54,22 @@ dta_ratios <- dta_selection %>%
   spread(key=sex, value = death_rate) %>% 
   mutate(sex_ratio = male/ female) %>% 
   select(year, age , sex_ratio) %>% 
-  filter(age <= 100)
+  filter(age <= 100) %>% 
+  mutate(sex_ratio = ifelse(
+    sex_ratio > 3.4, 3.399,
+    ifelse(
+      sex_ratio < 0.9, 0.901,
+      sex_ratio
+    )
+  )
+  )
 
-contourplot(
+png(
+  "figures/original/figure1_sex_ratio.png",
+  res=300,
+  height=20, width=20, units="cm"
+    )
+p <- contourplot(
     sex_ratio ~ year * age, 
     data=dta_ratios , 
     region=T, 
@@ -65,16 +78,19 @@ contourplot(
     xlab=list(label="Year", cex=1.4),
     cex=1.4,
     at=seq(from=0.9, to=3.4, by=0.1),
-    col.regions=colorRampPalette(brewer.pal(6, "Reds"))(200),
+    col.regions=colorRampPalette(rev(brewer.pal(6, "Spectral")))(200),
     main=NULL,
-    labels=list(cex=1.2),
-    col="blue",
+    labels=FALSE,
+    col="black",
     scales=list(
       x=list(at = seq(from = 1850, to = 2000, by = 10)),
       y=list(at = seq(from = 0, to = 100, by = 10))
     )
   )
 
+
+print(p)
+dev.off()
 
 
 
