@@ -3,6 +3,9 @@
 
 rm(list=ls())
 
+# Prerequisite packages ---------------------------------------------------
+
+
 require(readr)
 require(readxl)
 require(plyr)
@@ -13,12 +16,14 @@ require(dplyr)
 require(lattice)
 require(latticeExtra)
 
+require(grid)
 require(ggplot2)
 
 
 
 
-# Load data ---------------------------------------------------------------
+# Data --------------------------------------------------------------------
+
 
 dta <- read_csv("data/counts.csv")
 
@@ -38,14 +43,21 @@ code_selection <- code_to_country_lookup %>%
   .$code
 
 
+
+# Derived data ------------------------------------------------------------
+
+
 dta_selection <- dta %>% 
-  filter(country %in% code_selection & sex !="Total") %>% 
+  filter(country %in% code_selection & sex !="total") %>% 
   group_by(year, age, sex) %>% 
   summarise(
     population_count = sum(population_count), 
     death_count = sum(death_count)
     ) %>% 
   filter(year >= 1850 & year <=2000)
+
+
+# Original figure 1 -------------------------------------------------------
 
 
 dta_ratios <- dta_selection %>% 
@@ -92,7 +104,8 @@ png(
 print(p)
 dev.off()
 
-# Original figure 2
+# Original Figure 2 -------------------------------------------------------
+
 
 dta_ratios <- dta_selection %>% 
   mutate(death_rate = death_count / population_count) %>% 
@@ -154,6 +167,72 @@ png(
 )
 print(p)
 dev.off()
+
+
+
+
+# Original Table 2 --------------------------------------------------------
+
+dta_selection %>% 
+  filter(sex !="total" & year %in% 
+           c(1910, 1919, 1930, 1940, 
+             1950, 1960, 1970, 1980, 1990)) %>% 
+  group_by(year, sex) %>% 
+  summarise(
+    population_count = sum(population_count),
+    death_count = sum(death_count)          
+            ) %>% 
+  mutate(
+    rate_per_thousand = 1000 * death_count / population_count
+    ) %>% 
+  select(-population_count, -death_count) %>% 
+  spread(key=sex, value = rate_per_thousand) %>% 
+  write.table(., file="clipboard")
+
+
+
+# Original figure 3 -------------------------------------------------------
+
+
+
+dta_selection <- dta %>% 
+  filter(country %in% code_selection & sex !="total") %>% 
+  group_by(year, age, sex) %>% 
+  summarise(
+    population_count = sum(population_count), 
+    death_count = sum(death_count)
+  ) %>% 
+  filter(year >= 1841 & year <=2000)
+
+
+dta_selection %>% 
+  filter(age %in% c(10, 30)) %>% 
+  mutate(
+    mortality_rate = 1000 * death_count / population_count,
+    grp = paste(sex, "aged", age)
+    ) %>% 
+  ggplot(.) + 
+  geom_line(aes(x=year, y= mortality_rate, group=grp, colour=grp)) + 
+  scale_y_log10(limits=c(0.1, 100.0), breaks=c(0.1, 1.0, 10.0, 100.0)) + 
+  theme_minimal() + 
+  scale_x_continuous(
+    limits = c(1841, 2000), 
+    breaks=seq(from = 1841, to = 1991, by = 10)
+    ) + 
+  labs(y="Mortality/1000/year", x="Year") + 
+  scale_colour_discrete(
+    guide=guide_legend(title=NULL)
+  ) + 
+  theme(
+    axis.text.x = element_text(angle= 90),
+    legend.justification = c(0, 1), 
+    legend.position=c(0.7,0.9)
+    )
+
+
+ggsave(filename ="figures/original/figure3_mortper1000peryear.png",
+       width=15, height=15, units="cm", dpi = 300
+)
 
 
 
