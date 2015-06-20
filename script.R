@@ -236,3 +236,52 @@ ggsave(filename ="figures/original/figure3_mortper1000peryear.png",
 
 
 
+# Replicate tables of mortality ratios by birth year ----------------------
+
+dta_selection2 <- dta_selection
+dta_selection2 <- dta_selection2 %>% 
+  mutate(birth_year = year - age) %>% 
+  filter(birth_year %in% seq(from = 1850, to =  1995, by = 5)) %>% 
+  filter(age < 100)
+  
+age_groups <- c(
+    "0-4",    "5-9",
+    "10-14",  "15-19",
+    "20-24",  "25-29",
+    "30-34",    "35-39",
+    "40-44",    "45-49",
+    "50-54",    "55-59",
+    "60-64",    "65-69",
+    "70-74",    "75-79",
+    "80-80",    "85-89",
+    "90-94",    "95-99"
+)
+age_lookup <- data.frame(
+  age = 0:99,
+  age_group = age_groups[1 + (0:99 %/% 5)]
+)
+
+dta_selection2$age_group <- mapvalues(
+  dta_selection2$age, 
+  from = age_lookup$age, 
+  to = as.character(age_lookup$age_group) 
+)
+
+dta_selection2$age_group <- factor(
+  dta_selection2$age_group,
+  levels = age_groups
+)
+
+rate_table <- dta_selection2 %>% 
+  group_by(birth_year, age_group, sex) %>% 
+  summarise(
+    population_count = sum(population_count),
+    death_count = sum(death_count)
+            ) %>% 
+  mutate(mortality_rate = death_count / population_count) %>% 
+  select(-population_count, -death_count) %>% 
+  spread(key=sex, value = mortality_rate) %>% 
+  mutate(rate_ratio = male / female) %>% 
+  select(-female, -male) %>% 
+  spread(key=age_group, value = rate_ratio)
+
