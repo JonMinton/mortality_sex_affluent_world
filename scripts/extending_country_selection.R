@@ -1,6 +1,7 @@
 # Replication and updating of Rigby & Dorling 2007, Mortality in relation to sex in the affluent world
 
-# Updating using existing country selection
+# Updating using new country selection but ensuring same countries are not included twice
+
 
 rm(list=ls())
 
@@ -28,34 +29,52 @@ require(ggplot2)
 
 dta <- read_csv("data/counts.csv")
 
-original_countries <- read_excel(
-  "support/replication_details.xlsx", 
-  sheet = "original_country_selection"
-  )
 
 code_to_country_lookup <- read_excel(
   "support/replication_details.xlsx",
   sheet="code_to_country_lookup"
 )
 
-
-code_selection <- code_to_country_lookup %>% 
-  filter(in_original_selection == 1) %>% 
+full_country_lookup <- code_to_country_lookup  %>% 
+  filter(include_in_full_selection == 1)  %>% 
   .$code
 
 
+# Original Table 1 : Country, years available, population in (say) 2010 or latest available year
 
+
+table_1 <- dta %>% 
+  filter(country %in% full_country_lookup) %>%
+  filter(sex == "total") %>% 
+  group_by(country) %>% 
+  summarise(
+    min_year = min(year), 
+    max_year = max(year), 
+    pop_2010 = ifelse(
+      max_year >= 2010, 
+      sum(population_count[year == 2010]) / 1E6,
+      sum(population_count[year == max_year] / 1E6)
+    )
+  ) %>% 
+  arrange(min_year)
+
+write.csv(table_1, "clipboard")
+    
 # Derived data ------------------------------------------------------------
 
 
+
 dta_selection <- dta %>% 
-  filter(sex !="total") %>% 
+  filter(sex !="total" & country %in% full_country_lookup) %>% 
   group_by(year, age, sex) %>% 
   summarise(
     population_count = sum(population_count), 
     death_count = sum(death_count)
     ) %>% 
   filter(year >= 1850 & year <=2010)
+
+
+
 
 
 # Original figure 1 -------------------------------------------------------
@@ -176,7 +195,7 @@ dev.off()
 
 dta_selection %>% 
   filter(sex !="total" & year %in% 
-           c(1910, 1919, 1930, 1940, 
+           c(1860, 1870, 1890, 1900,1910, 1919, 1930, 1940, 
              1950, 1960, 1970, 1980, 1990, 2000, 2010)) %>% 
   group_by(year, sex) %>% 
   summarise(
