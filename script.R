@@ -104,6 +104,53 @@ png(
 print(p)
 dev.off()
 
+# Complementary figure : male to female excess mortality
+
+dta_excess <- dta_selection %>% 
+  mutate(death_rate = death_count / population_count) %>% 
+  select(year, age, sex, death_rate) %>% 
+  spread(key=sex, value = death_rate) %>% 
+  mutate(sex_excess = male - female) %>% 
+  mutate(sex_excess = sex_excess * 1000) %>%
+  select(year, age , sex_excess) %>% 
+  filter(age <= 100) %>% 
+mutate(sex_excess = ifelse(
+  sex_excess > 12, 11.9,
+  ifelse(
+    sex_excess < 0, 0.1,
+    sex_excess
+  )
+)
+)
+
+
+p <- contourplot(
+  sex_excess ~ year * age, 
+  data=dta_excess , 
+  region=T, 
+  par.strip.text=list(cex=1.4, fontface="bold"),
+  ylab=list(label="Age in years", cex=1.4),
+  xlab=list(label="Year", cex=1.4),
+  cex=1.4,
+  at=seq(from=0.000, to=12, by=1),
+  col.regions=colorRampPalette(rev(brewer.pal(6, "Spectral")))(200),
+  main=NULL,
+  labels=FALSE,
+  col="black",
+  scales=list(
+    x=list(at = seq(from = 1850, to = 2000, by = 10)),
+    y=list(at = seq(from = 0, to = 100, by = 10))
+  )
+)
+
+png(
+  "figures/original/figure1a_sex_excess.png",
+  res=300,
+  height=20, width=20, units="cm"
+)
+print(p)
+dev.off()
+
 # Original Figure 2 -------------------------------------------------------
 
 
