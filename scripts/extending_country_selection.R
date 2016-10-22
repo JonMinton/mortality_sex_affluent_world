@@ -251,27 +251,6 @@ dev.off()
 
 
 
-
-# Original Table 2 --------------------------------------------------------
-
-dta_selection %>% 
-  filter(sex !="total" & year %in% 
-           c(1860, 1870, 1890, 1900,1910, 1919, 1930, 1940, 
-             1950, 1960, 1970, 1980, 1990, 2000, 2010)) %>% 
-  group_by(year, sex) %>% 
-  summarise(
-    population_count = sum(population_count),
-    death_count = sum(death_count)          
-            ) %>% 
-  mutate(
-    rate_per_thousand = 1000 * death_count / population_count
-    ) %>% 
-  select(-population_count, -death_count) %>% 
-  spread(key=sex, value = rate_per_thousand) %>% 
-  write.table(., file="clipboard")
-
-
-
 # Original figure 3 -------------------------------------------------------
 
 
