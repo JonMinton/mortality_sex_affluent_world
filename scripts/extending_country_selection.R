@@ -125,6 +125,67 @@ png(
 print(p)
 dev.off()
 
+
+# Complementary figure : male to female excess mortality
+
+dta_excess <- dta_selection %>% 
+mutate(death_rate = death_count / population_count) %>% 
+select(year, age, sex, death_rate) %>% 
+spread(key=sex, value = death_rate) %>% 
+mutate(sex_excess = male - female) %>% 
+mutate(sex_excess = sex_excess * 1000) %>%
+select(year, age , sex_excess) %>% 
+filter(age <= 100) %>% 
+mutate(sex_excess = ifelse(
+  sex_excess > 12, 11.9,
+  ifelse(
+    sex_excess < 0, 0.1,
+    sex_excess
+  )
+)
+)
+
+
+p <- contourplot(
+  sex_excess ~ year * age, 
+  data=dta_excess , 
+  region=T, 
+  par.strip.text=list(cex=1.4, fontface="bold"),
+  ylab=list(label="Age in years", cex=1.4),
+  xlab=list(label="Year", cex=1.4),
+  cex=1.4,
+  at=seq(from=0.000, to=12, by=1),
+  col.regions=colorRampPalette(rev(brewer.pal(6, "Spectral")))(200),
+  main=NULL,
+  labels=FALSE,
+  col="black",
+  scales=list(
+    x=list(at = seq(from = 1850, to = 2000, by = 10)),
+    y=list(at = seq(from = 0, to = 100, by = 10))
+  )
+)
+
+png(
+  "figures/all_countries/figure1a_sex_excess.png",
+  res=300,
+  height=20, width=20, units="cm"
+)
+print(p)
+dev.off()
+
+# Additional table : sex ratio by birth cohort and age 
+
+dta_ratios %>% 
+  mutate(birth_cohort = year - age) %>% 
+  filter(birth_cohort %in% c(1925, 1935, 1945, 1955)) %>% 
+  filter(age %in% seq(25, 60, by = 5)) %>% 
+  ungroup() %>% 
+  select(-year) %>% 
+  spread(birth_cohort, sex_ratio) 
+
+# sex ratio for 40 year olds in 1992 and 50 year olds in 2002
+dta_ratios %>% filter(year %in% c(1992, 2002)) %>% filter(age %in% c(40, 50))
+
 # Original Figure 2 -------------------------------------------------------
 
 
@@ -202,27 +263,6 @@ dta_ratios_fd <- dta_ratios %>%
 # without clipping 
 
 
-
-# Original Table 2 --------------------------------------------------------
-
-dta_selection %>% 
-  filter(sex !="total" & year %in% 
-           c(1860, 1870, 1890, 1900,1910, 1919, 1930, 1940, 
-             1950, 1960, 1970, 1980, 1990, 2000, 2010)) %>% 
-  group_by(year, sex) %>% 
-  summarise(
-    population_count = sum(population_count),
-    death_count = sum(death_count)          
-            ) %>% 
-  mutate(
-    rate_per_thousand = 1000 * death_count / population_count
-    ) %>% 
-  select(-population_count, -death_count) %>% 
-  spread(key=sex, value = rate_per_thousand) %>% 
-  write.table(., file="clipboard")
-
-
-
 # Original figure 3 -------------------------------------------------------
 
 
@@ -238,13 +278,13 @@ dta_selection <- dta %>%
 
 
 dta_selection %>% 
-  filter(age %in% c(10, 30)) %>% 
+  filter(age %in% c(10, 20, 30, 40)) %>% 
+  ungroup() %>%
   mutate(
-    mortality_rate = 1000 * death_count / population_count,
-    grp = paste(sex, "aged", age)
+    mortality_rate = 1000 * death_count / population_count
     ) %>% 
   ggplot(.) + 
-  geom_line(aes(x=year, y= mortality_rate, group=grp, colour=grp)) + 
+  geom_line(aes(x=year, y= mortality_rate, group=sex, colour=sex)) + 
   scale_y_log10(limits=c(0.1, 100.0), breaks=c(0.1, 1.0, 10.0, 100.0)) + 
   theme_minimal() + 
   scale_x_continuous(
@@ -256,14 +296,13 @@ dta_selection %>%
     guide=guide_legend(title=NULL)
   ) + 
   theme(
-    axis.text.x = element_text(angle= 90),
-    legend.justification = c(0, 1), 
-    legend.position=c(0.7,0.9)
-    )
+    axis.text.x = element_text(angle= 90)
+    ) + 
+  facet_wrap(~age, nrow = 2)
 
 
-ggsave(filename ="figures/all_countries/figure3_mortper1000peryear.png",
-       width=15, height=15, units="cm", dpi = 300
+ggsave(filename ="figures/all_countries/figure3A_mortper1000peryear.png",
+       width=20, height=15, units="cm", dpi = 300
 )
 
 
