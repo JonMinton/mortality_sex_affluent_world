@@ -105,6 +105,7 @@ p <- contourplot(
     ylab=list(label="Age in years", cex=1.4),
     xlab=list(label="Year", cex=1.4),
     cex=1.4,
+    aspect = "iso",
     at=seq(from=0.9, to=3.4, by=0.1),
     col.regions=colorRampPalette(rev(brewer.pal(6, "Spectral")))(200),
     main=NULL,
@@ -119,7 +120,7 @@ p <- contourplot(
 png(
   "figures/all_countries/figure1_sex_ratio.png",
   res=300,
-  height=20, width=20, units="cm"
+  height=20, width=30, units="cm"
 )
 print(p)
 dev.off()
@@ -160,6 +161,9 @@ dta_ratios_fd <- dta_ratios %>%
   )
 
 
+# without clipping 
+
+
 
 p <- contourplot(
   smoothed_ratio ~ year * age, 
@@ -172,6 +176,7 @@ p <- contourplot(
   at=seq(from=0.95, to=1.10, by=0.01),
   col.regions=colorRampPalette(rev(brewer.pal(6, "Spectral")))(200),
   main=NULL,
+  aspect = "iso",
   labels=FALSE,
   col="black",
   scales=list(
@@ -183,11 +188,18 @@ p <- contourplot(
 png(
   "figures/all_countries/figure2_smoothed_first_derivative.png",
   res=300,
-  height=20, width=20, units="cm"
+  height=20, width=30, units="cm"
 )
 print(p)
 dev.off()
 
+# Without clipping 
+dta_ratios_fd <- dta_ratios %>% 
+  group_by(year) %>% 
+  do(fn(.))
+
+
+# without clipping 
 
 
 
