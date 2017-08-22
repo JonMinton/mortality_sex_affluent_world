@@ -137,7 +137,7 @@ mutate(sex_excess = sex_excess * 1000) %>%
 select(year, age , sex_excess) %>% 
 filter(age <= 100) %>% 
 mutate(sex_excess = ifelse(
-  sex_excess > 12, 11.9,
+  sex_excess > 15, 14.9,
   ifelse(
     sex_excess < 0, 0.1,
     sex_excess
@@ -154,9 +154,10 @@ p <- contourplot(
   ylab=list(label="Age in years", cex=1.4),
   xlab=list(label="Year", cex=1.4),
   cex=1.4,
-  at=seq(from=0.000, to=12, by=1),
+  at=seq(from=0.000, to=15, by=1),
   col.regions=colorRampPalette(rev(brewer.pal(6, "Spectral")))(200),
   main=NULL,
+  aspect = "iso",
   labels=FALSE,
   col="black",
   scales=list(
@@ -168,7 +169,7 @@ p <- contourplot(
 png(
   "figures/all_countries/figure1a_sex_excess.png",
   res=300,
-  height=20, width=20, units="cm"
+  height=20, width=30, units="cm"
 )
 print(p)
 dev.off()
@@ -184,7 +185,9 @@ dta_ratios %>%
   spread(birth_cohort, sex_ratio) 
 
 # sex ratio for 40 year olds in 1992 and 50 year olds in 2002
-dta_ratios %>% filter(year %in% c(1992, 2002)) %>% filter(age %in% c(40, 50))
+dta_ratios %>% 
+  filter(year %in% c(1992, 2002)) %>% 
+  filter(age %in% c(40, 50))
 
 # Original Figure 2 -------------------------------------------------------
 
@@ -222,9 +225,7 @@ dta_ratios_fd <- dta_ratios %>%
   )
 
 
-# without clipping 
-
-
+# With clipping
 
 p <- contourplot(
   smoothed_ratio ~ year * age, 
@@ -260,7 +261,95 @@ dta_ratios_fd <- dta_ratios %>%
   do(fn(.))
 
 
-# without clipping 
+# do for half decades average of smoothed ratios from age 3
+
+dta_ratios_fd %>% 
+  mutate(
+    yr_grp = cut(
+      year, seq(1850, 2010, by = 5), 
+      include.lowest = T,
+      ordered_result = T
+    )
+  ) %>% 
+  filter(age >= 3, age <=90) %>% 
+  group_by(age, yr_grp) %>% 
+  summarise(
+    ss_ratio = mean(smoothed_ratio)
+  ) %>% 
+  ggplot(., aes(x = age, y = log(ss_ratio))) + 
+  geom_line() + 
+  facet_wrap(~yr_grp) + 
+  geom_hline(yintercept = 0)
+
+
+# Change over period 1850 to 1900 
+
+dta_ratios_fd %>% 
+  mutate(yr_grp = cut(
+    year, c(1850, 1900, 1950, 2015), include.lowest = T,
+    labels = c("19th C", "Wars", "Post-War")                  
+                      )) %>% 
+  group_by(yr_grp, age) %>% 
+  summarise(smr = mean(smoothed_ratio)) %>% 
+  filter(age >= 5, age <= 80) %>% 
+  ggplot(., aes(x = age, y = smr, colour = yr_grp)) + 
+  geom_line() + 
+  geom_hline(yintercept = 1)
+
+# Now, for post war years, arrange by cohort for half decades 
+
+dta_ratios_fd %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort >= 1950) %>% 
+  mutate(cohort_grp = cut(
+    cohort, seq(1950, 2010, by = 5), include.lowest = T
+    )
+  ) %>% 
+  group_by(cohort_grp, age) %>% 
+  summarise(smr = mean(smoothed_ratio)) %>% 
+  filter(age >= 5, age <= 80) %>% 
+  ggplot(., aes(x = age, y = smr, colour = cohort_grp)) + 
+  geom_line() + 
+  geom_hline(yintercept = 1)
+
+dta_ratios_fd %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort >= 1950) %>% 
+  mutate(cohort_grp = cut(
+    cohort, seq(1950, 2010, by = 5), include.lowest = T
+  )
+  ) %>% 
+  filter(cohort <= 1985) %>% 
+  group_by(cohort_grp, age) %>% 
+  summarise(smr = mean(smoothed_ratio)) %>% 
+  filter(age >= 5, age <= 80) %>% 
+  ggplot(., aes(x = age, y = smr)) + 
+  geom_line() + 
+  geom_hline(yintercept = 1) + 
+  facet_wrap(~cohort_grp)
+
+dta_ratios_fd %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort >= 1950) %>% 
+  mutate(cohort_grp = cut(
+    cohort, seq(1950, 2010, by = 5), include.lowest = T
+  )
+  ) %>% 
+  filter(cohort <= 1985) %>% 
+  group_by(cohort_grp, age) %>% 
+  summarise(smr = mean(smoothed_ratio)) %>% 
+  filter(age >= 5, age <= 80) %>% 
+  ggplot(., aes(x = age, y = smr, colour = cohort_grp, linetype = cohort_grp)) + 
+  geom_line() + 
+  geom_hline(yintercept = 1) 
+
+dta_ratios_fd %>% 
+  filter(year >= 1950) %>% 
+  group_by(age) %>% 
+  summarise(smr = mean(smoothed_ratio)) %>% 
+  filter(age >= 5, age <= 80) %>% 
+  ggplot(., aes(x = age, y = smr)) + 
+  geom_line()
 
 
 # Original figure 3 -------------------------------------------------------
