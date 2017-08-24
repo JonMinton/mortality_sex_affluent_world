@@ -57,6 +57,30 @@ dta_selection <- dta %>%
 
 
 
+dta_ratios <- dta_selection %>% 
+  mutate(death_rate = death_count / population_count) %>% 
+  select(year, age, sex, death_rate) %>% 
+  spread(key=sex, value = death_rate) %>% 
+  mutate(sex_ratio = male/ female) %>% 
+  select(year, age , sex_ratio) %>% 
+  filter(age <= 100)
+
+fn <- function(x){
+  smoothed_ratio <- rep(1, 101)
+  for (i in 3:98){
+    smoothed_ratio[i] <- prod(x$sex_ratio[(i-2):(i+2)]) ^ (1/5)
+  }
+  smoothed_ratio[-1] <- smoothed_ratio[-1]/smoothed_ratio[-101]
+  out <- data.frame(x, smoothed_ratio = smoothed_ratio)
+  return(out)
+}
+
+
+dta_ratios_fd <- dta_ratios %>% 
+  group_by(year) %>% 
+  do(fn(.)) 
+
+
 # Explore curves by period ------------------------------------------------
 
 dta_selection %>% 
@@ -154,49 +178,115 @@ dta_selection %>%
   stat_smooth(data = . %>% filter(age_selection == T), method = "lm", se = F) +
   stat_smooth(data = . %>% filter(age_selection == F), method = "lm", se = F, colour = "red")
 
+# 
+# # For each cohort want to extract the following:
+# # maximum of three age average rate of change 
+# # gradient from maximum age to last observed age 
+# 
+# calculate_params <- function(DTA){
+#   # DTA contains age and diff
+#   DTA <- DTA %>% 
+#     arrange(age) %>% 
+#     mutate(sm_diff_lmr = mean(c(lag(diff_lmr), diff_lmr, lead(diff_lmr)))) 
+#   
+#   max_diff <- max(DTA$sm_diff_lmr, na.rm = T)
+#   age_max_diff <- DTA$age[DTA$sm_diff_lmr == max_diff]
+#   
+#   max_age <- max(DTA$age, na.rm = T)
+#   
+#   DTA_SS <- DTA %>% filter(age >= age_max_diff)
+#   
+#   mdl <- lm(diff_lmr ~ age, data = DTA_SS)
+#   fall <- coefficients(mdl)[2]
+#   
+#   out <- list(age_max_diff, max_diff, fall)
+#   out
+# }
+# 
+# 
+# dta_selection %>% 
+#   ungroup %>% 
+#   mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+#   mutate(lmr = log(mr, 10)) %>% 
+#   mutate(cohort = year - age) %>% 
+#   select(cohort, age, sex, lmr) %>% 
+#   spread(sex, lmr) %>% 
+#   mutate(diff_lmr = male - female) %>% 
+#   filter(cohort >= 1850) %>% 
+#   group_by(cohort) %>% 
+#   nest() %>% 
+#   mutate(params = map(data, safely(calculate_params)))
+# 
+# 
 
-# For each cohort want to extract the following:
-# maximum of three age average rate of change 
-# gradient from maximum age to last observed age 
+# Want to look at change in smoothed derivative 
 
-calculate_params <- function(DTA){
-  # DTA contains age and diff
-  DTA <- DTA %>% 
-    arrange(age) %>% 
-    mutate(sm_diff_lmr = mean(c(lag(diff_lmr), diff_lmr, lead(diff_lmr)))) 
-  
-  max_diff <- max(DTA$sm_diff_lmr, na.rm = T)
-  age_max_diff <- DTA$age[DTA$sm_diff_lmr == max_diff]
-  
-  max_age <- max(DTA$age, na.rm = T)
-  
-  DTA_SS <- DTA %>% filter(age >= age_max_diff)
-  
-  mdl <- lm(diff_lmr ~ age, data = DTA_SS)
-  fall <- coefficients(mdl)[2]
-  
-  out <- list(age_max_diff, max_diff, fall)
-  out
-}
+dta_ratios_fd %>% 
+  ungroup() %>% 
+  filter(year %in% seq(1850, 2010, by = 10)) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  mutate(divergence = smoothed_ratio > 1) %>% 
+  ggplot(., aes(x = age, y = smoothed_ratio, colour = divergence, shape = divergence)) + 
+  geom_point() + 
+  facet_wrap(~year) + 
+  geom_hline(yintercept = 1)
 
 
-dta_selection %>% 
-  ungroup %>% 
-  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
-  mutate(lmr = log(mr, 10)) %>% 
+# Now to look at this by cohort 
+
+dta_ratios_fd %>% 
+  ungroup() %>% 
   mutate(cohort = year - age) %>% 
-  select(cohort, age, sex, lmr) %>% 
-  spread(sex, lmr) %>% 
-  mutate(diff_lmr = male - female) %>% 
-  filter(cohort >= 1850) %>% 
-  group_by(cohort) %>% 
-  nest() %>% 
-  mutate(params = map(data, safely(calculate_params)))
+  filter(cohort %in% seq(1800, 1980, by = 10)) %>% 
+  mutate(divergence = smoothed_ratio > 1) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(., aes(x = age, y = smoothed_ratio, colour = divergence, shape = divergence)) + 
+  geom_point() + 
+  facet_wrap(~cohort) + 
+  geom_hline(yintercept = 1)
+
+dta_ratios_fd %>% 
+  ungroup() %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort %in% seq(1930, 1970, by = 2)) %>% 
+  mutate(divergence = smoothed_ratio > 1) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(., aes(x = age, y = smoothed_ratio, colour = divergence, shape = divergence)) + 
+  geom_point() + 
+  facet_wrap(~cohort) + 
+  geom_hline(yintercept = 1)
 
 
+dta_ratios_fd %>% 
+  ungroup() %>% 
+  mutate(cohort = year - age) %>% 
+  mutate(divergence = smoothed_ratio > 1) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(., aes(x = age, y = smoothed_ratio, colour = cohort, shape = divergence)) + 
+  geom_jitter(alpha = 0.1) + 
+  geom_hline(yintercept = 1) + 
+  scale_color_distiller(type = "qual") + 
+  coord_cartesian(ylim=c(0.8, 1.2))
 
+dta_ratios_fd %>% 
+  ungroup() %>% 
+  mutate(divergence = smoothed_ratio > 1) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(., aes(x = age, y = smoothed_ratio, colour = year, shape = divergence)) + 
+  geom_jitter(alpha = 0.1) + 
+  geom_hline(yintercept = 1) + 
+  scale_color_distiller(type = "qual") + 
+  coord_cartesian(ylim=c(0.8, 1.2))
 
-
+dta_ratios_fd %>% 
+  ungroup() %>% 
+  mutate(divergence = smoothed_ratio > 1) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(., aes(x = age, y = smoothed_ratio, colour = year, shape = divergence)) + 
+  geom_jitter(alpha = 0.1) + 
+  geom_hline(yintercept = 1) + 
+  scale_color_distiller(type = "qual") + 
+  coord_cartesian(ylim=c(0.8, 1.2)) 
 
 
 
