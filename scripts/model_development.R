@@ -57,6 +57,150 @@ dta_selection <- dta %>%
 
 
 
+# Explore curves by period ------------------------------------------------
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  filter(year %in% seq(1850, 2010, by = 10)) %>% 
+  ggplot(., aes(x = age, y = lmr, group = sex, colour = sex)) + 
+  geom_point() + facet_wrap(~year)
+
+# Explore excess in lmr by period
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  filter(year %in% seq(1850, 2010, by = 10)) %>% 
+  select(year, age, sex, lmr) %>% 
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>% 
+  mutate(male_excess = diff_lmr > 0) %>% 
+  ggplot(., aes(x = age, y = diff_lmr, colour = male_excess)) + 
+  geom_point() + facet_wrap(~year) +
+  coord_cartesian(ylim = c(-0.6, 0.6)) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = c(15, 18, 25, 35, 60), linetype = "dashed")
+
+# Change in diff in lmr with additional year of age - by gender
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  filter(year %in% seq(1850, 2010, by = 10)) %>% 
+  group_by(year, sex) %>% 
+  arrange(age) %>% 
+  mutate(lmr_last = lag(lmr, 1)) %>% 
+  mutate(change_lmr = lmr - lmr_last) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(., aes(x = age, y = change_lmr, colour = sex, shape = sex)) +
+  geom_point() + 
+  facet_wrap(~year) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = c(15, 18, 25, 35, 60, 65), linetype = "dashed")
+
+
+# Bathtubs by cohort 
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort %in% seq(1800, 1980, by = 10)) %>% 
+  ggplot(., aes(x = age, y = lmr, colour = sex, shape = sex)) + 
+  geom_point() + 
+  facet_wrap(~cohort)
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort %in% seq(1800, 1980, by = 10)) %>%
+  select(cohort, age, sex, lmr) %>% 
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>% 
+  ggplot(., aes(x = age, y = diff_lmr)) + 
+  geom_point() + 
+  facet_wrap(~cohort) + 
+  geom_hline(yintercept = 0)
+
+# Interest is in cohorts who entered the labour market after 1950
+
+# This means cohorts born from 1930
+
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  filter(cohort %in% seq(1930, 1980, by = 2)) %>%
+  select(cohort, age, sex, lmr) %>% 
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>% 
+  group_by(cohort) %>% 
+  mutate(max_diff = max(diff_lmr)) %>%
+  mutate(age_max_diff = age[diff_lmr == max_diff]) %>% 
+  mutate(age_selection = age >= age_max_diff) %>% 
+  ungroup() %>% 
+  ggplot(., aes(x = age, y = diff_lmr)) + 
+  geom_point(alpha = 0.3) + 
+  facet_wrap(~cohort) + 
+  geom_hline(yintercept = 0) +
+  stat_smooth(data = . %>% filter(age_selection == T), method = "lm", se = F) +
+  stat_smooth(data = . %>% filter(age_selection == F), method = "lm", se = F, colour = "red")
+
+
+# For each cohort want to extract the following:
+# maximum of three age average rate of change 
+# gradient from maximum age to last observed age 
+
+calculate_params <- function(DTA){
+  # DTA contains age and diff
+  DTA <- DTA %>% 
+    arrange(age) %>% 
+    mutate(sm_diff_lmr = mean(c(lag(diff_lmr), diff_lmr, lead(diff_lmr)))) 
+  
+  max_diff <- max(DTA$sm_diff_lmr, na.rm = T)
+  age_max_diff <- DTA$age[DTA$sm_diff_lmr == max_diff]
+  
+  max_age <- max(DTA$age, na.rm = T)
+  
+  DTA_SS <- DTA %>% filter(age >= age_max_diff)
+  
+  mdl <- lm(diff_lmr ~ age, data = DTA_SS)
+  fall <- coefficients(mdl)[2]
+  
+  out <- list(age_max_diff, max_diff, fall)
+  out
+}
+
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  select(cohort, age, sex, lmr) %>% 
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>% 
+  filter(cohort >= 1850) %>% 
+  group_by(cohort) %>% 
+  nest() %>% 
+  mutate(params = map(data, safely(calculate_params)))
+
+
+
+
+
+
+
+
+
 dta_selection %>% 
   ungroup() %>%  
   mutate(
