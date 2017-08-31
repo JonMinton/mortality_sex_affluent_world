@@ -152,6 +152,403 @@ dta_selection %>%
   facet_wrap(~cohort) + 
   geom_hline(yintercept = 0)
 
+# line version of above grouped rather than faceted
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  select(cohort, age, sex, lmr) %>%
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>%
+  filter(age <= 90) %>% 
+  ggplot(., aes(x = age, y = diff_lmr, group = cohort, alpha = cohort )) + 
+  geom_line() + 
+  geom_hline(yintercept = 0) + 
+  scale_alpha_continuous(limits = c(1800, 1980), range = c(0, 1))
+
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  select(cohort, age, sex, lmr) %>%
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>%
+  filter(age <= 90) %>% 
+  filter(cohort >= 1930) %>% 
+  ggplot(., aes(x = age, y = diff_lmr, group = cohort, color = cohort)) + 
+  geom_line() + 
+  geom_hline(yintercept = 0) + 
+#  scale_alpha_continuous(limits = c(1930, 1980), range = c(0, 1)) + 
+  scale_color_distiller(palette = "Paired")
+
+# Let's try but faceted by decade
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  select(cohort, age, sex, lmr) %>%
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>%
+  mutate(cohort_decade = 10 * cohort %/% 10) %>% 
+  mutate(year_within_cohort = cohort - cohort_decade) %>% 
+  filter(age <= 90) %>% 
+  filter(cohort >= 1850, cohort <= 1999) %>% 
+  ggplot(., aes(x = age, y = diff_lmr, group = cohort, color = factor(year_within_cohort))) + 
+  geom_line() + 
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~cohort_decade) + 
+  #  scale_alpha_continuous(limits = c(1930, 1980), range = c(0, 1)) + 
+  scale_color_brewer(palette = "Paired", name = "Year\nwithin\ncohort") +
+  scale_x_continuous(limits = c(0, 90), breaks = seq(0, 90, by = 5)) + 
+  scale_y_continuous(breaks = seq(-0.10, 0.60, by = 0.05)) +
+  coord_cartesian(ylim = c(-0.1, 0.6)) + 
+  labs(title = "Difference in log mortality by cohort", x = "Age in years", y = "Difference in log mortality")
+
+  
+
+# Same sort of thing, but period not cohort 
+
+
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  select(year, age, sex, lmr) %>%
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>%
+  mutate(decade = 10 * year %/% 10) %>% 
+  mutate(year_within_decade = year - decade) %>% 
+  filter(age <= 90) %>% 
+  filter(year < 2010) %>% 
+  ggplot(., aes(x = age, y = diff_lmr, group = year, color = factor(year_within_decade))) + 
+  geom_line() + 
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~decade) + 
+  #  scale_alpha_continuous(limits = c(1930, 1980), range = c(0, 1)) + 
+  scale_color_brewer(palette = "Paired", name = "Year\nwithin\ndecade") +
+  scale_x_continuous(limits = c(0, 90), breaks = seq(0, 90, by = 5)) + 
+  scale_y_continuous(breaks = seq(-0.10, 0.60, by = 0.05)) +
+  coord_cartesian(ylim = c(-0.1, 0.6)) + 
+  labs(title = "Difference in log mortality by period", x = "Age in years", y = "Difference in log mortality")
+
+
+# Interest in gradient of change between ages 12 and 23 years 
+
+# First by period, then by cohort 
+
+# Note: dots look better here than lines
+# By period
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  select(year,age, sex, lmr) %>% 
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>% 
+  group_by(year) %>% 
+  arrange(age) %>% 
+  mutate(grad_lmr = diff_lmr - lag(diff_lmr)) %>% 
+  filter(age >= 3, age <= 50) %>% 
+  mutate(decade = 10 * year %/% 10) %>% 
+  mutate(year_within_decade = year - decade) %>% 
+  filter(year < 2010) %>% 
+  ggplot(., aes(x = age, y = grad_lmr, group = year, color = factor(year_within_decade))) + 
+  geom_point() + 
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~decade) + 
+  scale_color_brewer(palette = "Paired", name = "Year\nwithin\ndecade") +
+  scale_x_continuous(limits = c(3, 50), breaks = seq(4, 50, by = 2)) + 
+  scale_y_continuous(breaks = seq(-0.05, 0.15, by = 0.01)) +
+  coord_cartesian(ylim = c(-0.05, 0.15)) + 
+  labs(title = "Change in Difference in log mortality by period", x = "Age in years", y = "Difference in log mortality") 
+
+
+
+# By cohort
+dta_selection %>% 
+  ungroup %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>%
+  mutate(cohort = year - age) %>% 
+  select(cohort,age, sex, lmr) %>% 
+  spread(sex, lmr) %>% 
+  mutate(diff_lmr = male - female) %>% 
+  group_by(cohort) %>% 
+  arrange(age) %>% 
+  mutate(grad_lmr = diff_lmr - lag(diff_lmr)) %>% 
+  filter(age >= 3, age <= 50) %>% 
+  mutate(cohort_decade = 10 * cohort %/% 10) %>% 
+  mutate(year_within_cohort = cohort - cohort_decade) %>% 
+  filter(cohort < 2000) %>% 
+  ggplot(., aes(x = age, y = grad_lmr, group = cohort, color = factor(year_within_cohort))) + 
+  geom_point() + 
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~cohort_decade) + 
+  scale_color_brewer(palette = "Paired", name = "Year\nwithin\ncohort") +
+  scale_x_continuous(limits = c(3, 50), breaks = seq(4, 50, by = 2)) + 
+  scale_y_continuous(breaks = seq(-0.05, 0.15, by = 0.01)) +
+  coord_cartesian(ylim = c(-0.05, 0.15)) + 
+  labs(title = "Change in Difference in log mortality by cohort", x = "Age in years", y = "Difference in log mortality") 
+
+
+
+# Piecewise models --------------------------------------------------------
+
+
+# The purpose of this section is to construct the model segmented by 
+# different ages in the life course 
+# First this will be by year, then by cohort 
+peek <- function(x) print(sample_n(x, 10))
+
+mdls_by_period <- dta_selection %>% 
+  ungroup()  %T>% peek %>% 
+  mutate(
+    age_group = cut(
+      age, 
+      breaks = c(0, 3, 11, 23, 35, 59, 90, Inf),
+      labels = c(
+        "0-3",
+        "4-11",
+        "12-23",
+        "24-35",
+        "36-59",
+        "60-90",
+        "older"
+      ),
+      include.lowest = T
+    )
+  ) %T>% peek %>%
+  filter(age_group != "older") %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %T>% peek %>% 
+  group_by(year, age_group, sex) %>% 
+  nest() %T>% peek %>% 
+  mutate(mdl = map(data, ~ lm(lmr ~ I(age - min(age)), data = .))) %>%
+  mutate(
+    intercept = map_dbl(mdl, ~ coefficients(.)[[1]]),
+    gradient = map_dbl(mdl, ~ coefficients(.)[[2]]),
+    fit = map_dbl(mdl, ~ summary(.)[["adj.r.squared"]])
+  ) 
+
+# Now to visualise 
+
+ggplot(
+  mdls_by_period,
+  aes(y = intercept, x = gradient, colour = fit)
+  ) + 
+  geom_path() + 
+  facet_grid(sex ~ age_group, scale = "free_x") + 
+  scale_color_distiller(palette = "Paired") + 
+  geom_vline(xintercept = 0) + 
+  geom_hline(yintercept = 0) + 
+  geom_text(
+    aes(label = year), 
+    colour = "black", 
+    fontface = "bold",
+    check_overlap = T,
+    data = . %>% filter(year %in% seq(1850, 2000, by = 25))
+    )
+
+# And now to visualise change 
+
+mdls_by_period %>% 
+  group_by(year, age_group) %>% 
+  mutate(
+    dif_intercept = intercept[sex == "male"] - intercept[sex == "female"],
+    dif_gradient = gradient[sex == "male"] - gradient[sex == "female"],
+    dif_fit = fit[sex == "male"] - fit[sex == "female"]
+    ) %>%  
+  ggplot(
+    aes(y = dif_intercept, x = dif_gradient, colour = dif_fit)
+  ) + 
+  geom_path() + 
+  facet_wrap( ~ age_group, scale = "free", nrow = 1) + 
+  scale_color_gradient2(
+    low = "red", mid = "grey", high = "blue",
+    limits = c(-1, 1)
+    ) + 
+  geom_vline(xintercept = 0) + 
+  geom_hline(yintercept = 0) + 
+  geom_text(
+    aes(label = year), 
+    colour = "black", 
+    fontface = "bold",
+    check_overlap = T,
+    data = . %>% filter(year %in% seq(1850, 2000, by = 50))
+  )
+
+
+# Now to do the same kind of exercise by cohort 
+
+
+age_group_selector <- dta_selection %>% 
+  ungroup()  %T>% peek %>% 
+  mutate(
+    age_group = cut(
+      age, 
+      breaks = c(0, 3, 11, 23, 35, 59, 90, Inf),
+      labels = c(
+        "0-3",
+        "4-11",
+        "12-23",
+        "24-35",
+        "36-59",
+        "60-90",
+        "older"
+      ),
+      include.lowest = T
+    )
+  ) %T>% peek %>%
+  filter(age_group != "older") %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %T>% peek %>% 
+  separate(
+    age_group, into = c("first_age", "last_age"), 
+    sep = "-", remove = F
+  ) %>%
+  mutate(first_age = as.numeric(first_age), 
+         last_age = as.numeric(last_age)
+  ) %>% 
+  mutate(cohort = year - age) %>%
+  select(cohort, age, sex, age_group, first_age, last_age) %>% 
+  group_by(cohort, age_group) %>% 
+  arrange(age) %>% 
+  mutate(
+    min_found_age = min(age),
+    max_found_age = max(age)
+  ) %>% 
+  mutate(
+    age_group_ok = first_age == min_found_age & last_age == max_found_age
+  ) %>% 
+  select(cohort, age_group, age_group_ok) %>% 
+  distinct() %>% ungroup()
+
+
+dta_for_cohort_models <- dta_selection %>% 
+  ungroup()  %T>% peek %>% 
+  mutate(
+    age_group = cut(
+      age, 
+      breaks = c(0, 3, 11, 23, 35, 59, 90, Inf),
+      labels = c(
+        "0-3",
+        "4-11",
+        "12-23",
+        "24-35",
+        "36-59",
+        "60-90",
+        "older"
+      ),
+      include.lowest = T
+    )
+  ) %T>% peek %>%
+  filter(age_group != "older") %>% 
+  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
+  mutate(lmr = log(mr, 10)) %>% 
+  mutate(cohort = year - age) %>% 
+  left_join(age_group_selector) %>% 
+  filter(age_group_ok) %>% 
+  select(cohort, age, age_group, sex, death_count, population_count) %>% 
+  arrange(cohort, age, sex) %>% 
+  mutate(
+    mr = (death_count + 0.5) / (population_count + 0.5),
+    lmr = log(mr, 10)
+  )
+
+mdls_by_cohort <- dta_for_cohort_models %>% 
+  group_by(cohort, age_group, sex) %>% 
+  nest() %T>% peek %>% 
+  mutate(mdl = map(data, ~ lm(lmr ~ I(age - min(age)), data = .))) %>%
+  mutate(
+    intercept = map_dbl(mdl, ~ coefficients(.)[[1]]),
+    gradient = map_dbl(mdl, ~ coefficients(.)[[2]]),
+    fit = map_dbl(mdl, ~ summary(.)[["adj.r.squared"]])
+  ) 
+
+
+ggplot(
+  mdls_by_cohort,
+  aes(y = intercept, x = gradient, colour = fit)
+) + 
+  geom_path() + 
+  facet_grid(sex ~ age_group, scale = "free") + 
+  scale_color_distiller(palette = "Paired") + 
+  geom_vline(xintercept = 0) + 
+  geom_hline(yintercept = 0) + 
+  geom_text(
+    aes(label = cohort), 
+    colour = "black", 
+    fontface = "bold",
+    check_overlap = T,
+    data = . %>% filter(cohort %in% seq(1750, 1975, by = 25))
+  )
+
+
+mdls_by_cohort %>% 
+  group_by(cohort, age_group) %>% 
+  mutate(
+    dif_intercept = intercept[sex == "male"] - intercept[sex == "female"],
+    dif_gradient = gradient[sex == "male"] - gradient[sex == "female"],
+    dif_fit = fit[sex == "male"] - fit[sex == "female"]
+  ) %>%  
+  ggplot(
+    aes(y = dif_intercept, x = dif_gradient, colour = dif_fit)
+  ) + 
+  geom_path() + 
+  facet_wrap( ~ age_group, scale = "free", nrow = 1) + 
+  scale_color_gradient2(
+    low = "red", mid = "grey", high = "blue",
+    limits = c(-1, 1)
+  ) + 
+  geom_vline(xintercept = 0) + 
+  geom_hline(yintercept = 0) + 
+  geom_text(
+    aes(label = cohort), 
+    colour = "black", 
+    fontface = "bold",
+    check_overlap = T,
+    data = . %>% filter(cohort %in% seq(1750, 1975, by = 25))
+  )
+
+mdls_by_cohort %>% 
+  group_by(cohort, age_group) %>% 
+  mutate(
+    dif_intercept = intercept[sex == "male"] - intercept[sex == "female"],
+    dif_gradient = gradient[sex == "male"] - gradient[sex == "female"],
+    dif_fit = fit[sex == "male"] - fit[sex == "female"]
+  ) %>%  
+  ggplot(
+    aes(y = dif_intercept, x = dif_gradient, colour = dif_fit)
+  ) + 
+  geom_path() + 
+  facet_wrap( ~ age_group, nrow = 1) + 
+  scale_color_gradient2(
+    low = "red", mid = "grey", high = "blue",
+    limits = c(-1, 1)
+  ) + 
+  geom_vline(xintercept = 0) + 
+  geom_hline(yintercept = 0) + 
+  geom_text(
+    aes(label = cohort), 
+    colour = "black", 
+    fontface = "bold",
+    check_overlap = T,
+    data = . %>% filter(cohort %in% seq(1750, 1975, by = 25))
+  )
+
+
+
+# Older material ----------------------------------------------------------
+
+
+
+
 # Interest is in cohorts who entered the labour market after 1950
 
 # This means cohorts born from 1930
