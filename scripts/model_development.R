@@ -81,15 +81,114 @@ dta_ratios_fd <- dta_ratios %>%
   do(fn(.)) 
 
 
+# Curves by year, fd, 1850 to 1910
+
+avg_smooth_old <- dta_ratios_fd %>% 
+  filter(year <= 1910) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  group_by(age) %>% 
+  summarise(
+    average_smooth = mean(smoothed_ratio),
+    var_smooth = var(smoothed_ratio)
+    )
+
+
+dta_ratios_fd %>% 
+  filter(year <= 1910) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(
+    ., 
+    aes(x = age, y = smoothed_ratio, group = year)     
+    ) + 
+  geom_line(alpha = 0.05) + 
+  geom_hline(yintercept = 1) +
+  scale_x_continuous(breaks = seq(5, 95, by = 5)) + 
+  scale_y_continuous(limits = c(0.9, 1.2), breaks = seq(0.9, 1.2, by = 0.01)) + 
+  ggtitle("Change in sex ratio by age, 1850-1910") + 
+  geom_line(
+    aes(x = age, y = average_smooth),
+    inherit.aes = F,
+    data = avg_smooth_old,
+    size = 1.2, colour = "blue"
+  )
+
+# Now the same over the period 1950-2010
+
+avg_smooth_new <- dta_ratios_fd %>% 
+  filter(year >= 1950, year <= 2010) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  group_by(age) %>% 
+  summarise(
+    average_smooth = mean(smoothed_ratio),
+    var_smooth = var(smoothed_ratio)
+  )
+
+
+dta_ratios_fd %>% 
+  filter(year >= 1950, year <= 2010) %>% 
+  filter(age >= 5, age <= 95) %>% 
+  ggplot(
+    ., 
+    aes(x = age, y = smoothed_ratio, group = year)     
+  ) + 
+  geom_line(alpha = 0.05) + 
+  geom_hline(yintercept = 1) +
+  scale_x_continuous(breaks = seq(5, 95, by = 5)) + 
+  scale_y_continuous(limits = c(0.9, 1.2), breaks = seq(0.9, 1.2, by = 0.01)) + 
+  ggtitle("Change in sex ratio by age, 1950-2010") + 
+  geom_line(
+    aes(x = age, y = average_smooth),
+    inherit.aes = F,
+    data = avg_smooth_new,
+    size = 1.2, colour = "red"
+  )
+
+
+# Two averages on same figure
+
+average_two_epochs <- bind_rows(
+  avg_smooth_old %>% mutate(epoch = "old"),
+  avg_smooth_new %>% mutate(epoch = "new")
+) 
+
+ggplot(
+  average_two_epochs,
+  aes(x = age, y = average_smooth, group = epoch, colour = epoch)
+  ) + 
+  geom_line(size = 1.2) + 
+  geom_hline(yintercept = 1) +
+  scale_x_continuous(breaks = seq(5, 95, by = 5)) + 
+  scale_y_continuous(limits = c(0.9, 1.2), breaks = seq(0.9, 1.2, by = 0.01)) + 
+  ggtitle("Average change in sex ratios over two epochs")  
+
+
+# Variance of change with age by year within the two epochs
+
+ggplot(
+  average_two_epochs,
+  aes(x = age, y = var_smooth, group = epoch, colour = epoch)
+) + 
+  geom_line(size = 1.2) + 
+  scale_x_continuous(breaks = seq(5, 95, by = 5)) + 
+#  scale_y_continuous(limits = c(0.9, 1.2), breaks = seq(0.9, 1.2, by = 0.01)) + 
+  ggtitle("Variance of age-change in sex ratios over two epochs")  
+
+
 # Explore curves by period ------------------------------------------------
 
 dta_selection %>% 
   ungroup %>% 
   mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
   mutate(lmr = log(mr, 10)) %>% 
-  filter(year %in% seq(1850, 2010, by = 10)) %>% 
+  mutate(decade = cut(
+    year, seq(1850, 2010, by = 10), 
+    include.lowest = T,
+    labels = paste0(seq(1850, 2000, by = 10), "s")
+    )
+  ) %>% 
   ggplot(., aes(x = age, y = lmr, group = sex, colour = sex)) + 
-  geom_point() + facet_wrap(~year)
+  geom_point(alpha = 0.1) + 
+  facet_wrap(~decade)
 
 # Explore excess in lmr by period
 
@@ -97,34 +196,22 @@ dta_selection %>%
   ungroup %>% 
   mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
   mutate(lmr = log(mr, 10)) %>% 
-  filter(year %in% seq(1850, 2010, by = 10)) %>% 
   select(year, age, sex, lmr) %>% 
   spread(sex, lmr) %>% 
   mutate(diff_lmr = male - female) %>% 
   mutate(male_excess = diff_lmr > 0) %>% 
+  mutate(decade = cut(
+    year, seq(1850, 2010, by = 10), 
+    include.lowest = T,
+    labels = paste0(seq(1850, 2000, by = 10), "s")
+  )
+  ) %>% 
   ggplot(., aes(x = age, y = diff_lmr, colour = male_excess)) + 
-  geom_point() + facet_wrap(~year) +
+  geom_point(alpha = 0.1) + facet_wrap(~decade) +
   coord_cartesian(ylim = c(-0.6, 0.6)) + 
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = c(15, 18, 25, 35, 60), linetype = "dashed")
 
-# Change in diff in lmr with additional year of age - by gender
-
-dta_selection %>% 
-  ungroup %>% 
-  mutate(mr = (death_count + 0.5) / (population_count + 0.5)) %>% 
-  mutate(lmr = log(mr, 10)) %>% 
-  filter(year %in% seq(1850, 2010, by = 10)) %>% 
-  group_by(year, sex) %>% 
-  arrange(age) %>% 
-  mutate(lmr_last = lag(lmr, 1)) %>% 
-  mutate(change_lmr = lmr - lmr_last) %>% 
-  filter(age >= 5, age <= 95) %>% 
-  ggplot(., aes(x = age, y = change_lmr, colour = sex, shape = sex)) +
-  geom_point() + 
-  facet_wrap(~year) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = c(15, 18, 25, 35, 60, 65), linetype = "dashed")
 
 
 # Bathtubs by cohort 
@@ -750,12 +837,6 @@ mdl_old %>%
   geom_point(aes(alpha = year, shape = sex)) + 
   geom_label(aes(label = year), data = . %>% filter(year %in% seq(1850, 2000, by = 25)))
 
-# Let's try a gganimate version of this 
-
-#devtools::install_github("dgrtwo/gganimate")
-
-library(gganimate)
-
 
 dta_selection %>% 
   ungroup %>% 
@@ -775,17 +856,36 @@ dta_selection %>%
     gradient = map_dbl(coef, ~ .[[2]])
   ) -> mdl_middle
 
-p <- ggplot(
-  data = mdl_middle, 
-  aes(x = intercept, y = gradient, colour = sex)
-) + 
-  geom_point(aes(frame = year, cumulative = TRUE))
-
-gganimate(p, interval = 0.01, title_frame = T)
+mdl_middle %>% 
+  ggplot(., aes(x = intercept, y = gradient, colour = sex)) +
+  geom_path(aes(alpha = year)) + 
+  geom_label(aes(label = year), data = . %>% filter(year %in% seq(1850, 2000, by = 25)))
 
 
+mdl_both <- bind_rows(
+  mdl_middle %>% 
+    select(sex, year, intercept, gradient) %>% 
+    mutate(age_range = "middle"),
+
+  mdl_old %>% 
+    select(sex, year, intercept, gradient) %>% 
+    mutate(age_range = "old")
+)
+
+mdl_both %>% 
+  group_by(year, age_range) %>% 
+  mutate(dif_intercept = intercept[sex == "male"] - intercept[sex == "female"]) %>% 
+  mutate(dif_gradient = gradient[sex == "male"] - gradient[sex == "female"])  %>% 
+  select(year, age_range, dif_intercept, dif_gradient) %>% 
+  ungroup() %>% 
+  distinct() %>% 
+  ggplot(., aes(x = dif_intercept, y = dif_gradient, colour = age_range, group= age_range)) + 
+  geom_path(aes(alpha = year)) + 
+  geom_label(aes(label = year), data = . %>% filter(year %in% seq(1850, 2000, by = 25))) +
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 0)
 
 
 
+  
 
 
