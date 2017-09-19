@@ -25,7 +25,8 @@ pacman::p_load(
   grid, ggplot2,
   lattice, 
   latticeExtra,
-  HPbayes
+  HPbayes,
+  MortHump
 )
 
 
