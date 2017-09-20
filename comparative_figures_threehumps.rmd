@@ -368,7 +368,7 @@ dta_selection %>%
   spread(sex, lmr) %>% 
   mutate(diff_lmr = male - female) %>%
   filter(age <= 90) %>% 
-  filter(cohort >= 1930) %>% 
+#  filter(cohort >= 1930) %>% 
   ggplot(., aes(x = age, y = diff_lmr, group = cohort, color = cohort)) + 
   geom_line() + 
   geom_hline(yintercept = 0) + 
@@ -439,7 +439,15 @@ dta_selection %>%
 
 Again, this is a complex visualisation, but appears informative in a number of ways 
 
-1. Firstly, the schedules appear more discontinuous with age in the latter deacdes, in particular during working age. For example, in the 1980s there was a discontinuity around the ages of 40-50 years, implying cohorts from 1940-1950, with gradually declining mortality excesses before this age and largly flat excesses after this age up until around 60 years. 
+1. Firstly, the schedules appear more discontinuous with age in the latter deacdes, in particular during working age. For example, in the 1980s there was a discontinuity around the ages of 40-50 years, implying cohorts from 1940-1950, with gradually declining mortality excesses before this age and largly flat excesses after this age up until around 60 years. Combined with the less discontinuous schedules when arranged by cohort, the rolling discontinuities appear consistent with cohort effects.
+2. There is also evidence of period-based change in young adulthood in the 1950s and 1950s, with incremental worsening in the log excesses at these age groups. 
+
+It is between ages 12 and 23 that the excesses peak. Then it is between around the ages of 23 and (say) 50 when they converge again. Both the gradient of the jump and the subsequent fall could be either period or cohort mediated, or a combination of the two. 
+
+Let's look at change in this younger age range, first by period 
+
+
+```{r gradient_change_period_younger_adulthood}
 # Interest in gradient of change between ages 12 and 23 years 
 
 # First by period, then by cohort 
@@ -469,8 +477,11 @@ dta_selection %>%
   scale_y_continuous(breaks = seq(-0.05, 0.15, by = 0.01)) +
   coord_cartesian(ylim = c(-0.05, 0.15)) + 
   labs(title = "Change in Difference in log mortality by period", x = "Age in years", y = "Difference in log mortality") 
+```
 
+And now by cohort. 
 
+```{r gradient_change_by_cohort}
 
 # By cohort
 dta_selection %>% 
@@ -498,8 +509,17 @@ dta_selection %>%
   coord_cartesian(ylim = c(-0.05, 0.15)) + 
   labs(title = "Change in Difference in log mortality by cohort", x = "Age in years", y = "Difference in log mortality") 
 
+```
 
 
+I'm not really sure there's a big distinction between the two types of output in terms of visual impression
+
+
+# Piecewise models
+
+To try to understand how the different components of the schedule over time, I'm now going to model both the intercepts and gradients of the schedule over different parts of the life coures 
+
+```{r piecewise models}
 # Piecewise models --------------------------------------------------------
 
 
@@ -537,7 +557,12 @@ mdls_by_period <- dta_selection %>%
     gradient = map_dbl(mdl, ~ coefficients(.)[[2]]),
     fit = map_dbl(mdl, ~ summary(.)[["adj.r.squared"]])
   ) 
+```
 
+Now to visualise this
+
+
+```{r piecewise_visualisation_01}
 # Now to visualise 
 
 ggplot(
@@ -556,6 +581,29 @@ ggplot(
     check_overlap = T,
     data = . %>% filter(year %in% seq(1850, 2000, by = 25))
     )
+
+
+```
+
+It is worth broadly defining those age groups over which the time trends have been broadly similar or dissimilar between sexes. 
+
+The trends are broadly *similar* for these age groups
+
+* **Infants (0-3)** : The intercept (infant mortality rate) was broadly the same for for much of the period 1850-1900, then started to fall in the 20th century. This fall has continued for both genders. The gradient fell too between around 1900 and 1925, and again slightly between around 1950 and 1975, but has largely remained constant since. 
+* **Young children (4-11 years)** : The intercept fell somewhat linearly from around 1900 onwards. The magnitude started to approach zero over this period too, however, suggesting broadly flat - and very low - mortality risk for both genders over this age range. 
+
+The trends are broadly *dissimilar* for these age groups:
+
+* **Older children (12-23 years)** : Trends were similar between around 1850 and 1925, with a falling intercept of a similar rate for both genders. There was also a similar fall for both genders over the period 1925 and 1950, though the 2nd World War led to a jump away from this general trend for a few years, creating a 'loop' in the path for males not seen for females. Between 1950 and 1975 the inercept fell for both genders, though faster for females than males. There was then a somewhat more gradual fall in this intercept between 1975 and 2000s. The gradients became increasingly different from 1950 onwards, with broadly static gradients for females, and accelerating gradients for males. The gradient for both genders over this age range used to be around 0.04-0.05. By the 2000s it had increased slightly for females, from around 0.035 in 1975 to 0.05 in 2010; and it had increased from around 0.06 to 0.08 for males. 
+* **Young Adults (24-35 years) ** : The model tends to have the poorest fit within this age range, perhaps because there is less of a time trend and mortality in this age range is more dependent on period-specific 'accident hump' based mortality. However the tendency has been for the intercept to fall steadily throughout the period, up to around 1975. There was a sharper fall in the intercept for females betwene 1950 and 1975 than for males. For both genders the gradient tends to have increaseds in this latter period, but more so for males than females. 
+* **Older working age adults (36-59 years) ** : For females there has been a clear, linear, long term trend towards compressed mortality implied by the polygon path. The intercept has steadily fallen at a similar rate throughout most of the period 1900 to 1975, falling almost an order of magnitude over this period. While this has happened the gradient has steadily increased, leading the the compression of mortality risk at older ages. For males, there was a similar trend over the period from around 1900 to 1950, but whereas there was a further improvement between the years 1950 and 1975 for females, the mortality schedule within the age group has been largely fixed from 1950 onwards, with very little change in either intercept or gradient. 
+* ** Elderly (60-90 years) ** : There has been a steadier fall in intercept and increase in gradient for females than for males, though qualitatively a similar story of reduced mortality risk combined with steeper positive gradient with age (greater senescence). 
+
+
+We can see how similarities and differences in patterns contribute to changing excesses over time 
+
+
+```{r show_piecewise_excesses}
 
 # And now to visualise change 
 
@@ -585,10 +633,12 @@ mdls_by_period %>%
     data = . %>% filter(year %in% seq(1850, 2000, by = 50))
   )
 
-
+```
 # Now to do the same kind of exercise by cohort 
 
+And again by cohort 
 
+```{r stuff_by_cohort}
 age_group_selector <- dta_selection %>% 
   ungroup()  %T>% peek %>% 
   mutate(
@@ -632,6 +682,8 @@ age_group_selector <- dta_selection %>%
   distinct() %>% ungroup()
 
 
+
+
 dta_for_cohort_models <- dta_selection %>% 
   ungroup()  %T>% peek %>% 
   mutate(
@@ -672,7 +724,9 @@ mdls_by_cohort <- dta_for_cohort_models %>%
     gradient = map_dbl(mdl, ~ coefficients(.)[[2]]),
     fit = map_dbl(mdl, ~ summary(.)[["adj.r.squared"]])
   ) 
+```
 
+```{r visualise_models_by_cohort}
 
 ggplot(
   mdls_by_cohort,
@@ -690,7 +744,9 @@ ggplot(
     check_overlap = T,
     data = . %>% filter(cohort %in% seq(1750, 1975, by = 25))
   )
+```
 
+```{r cohort_mod_fig_2}
 
 mdls_by_cohort %>% 
   group_by(cohort, age_group) %>% 
@@ -717,7 +773,10 @@ mdls_by_cohort %>%
     check_overlap = T,
     data = . %>% filter(cohort %in% seq(1750, 1975, by = 25))
   )
+```
 
+
+```{r cohort_fig_03}
 mdls_by_cohort %>% 
   group_by(cohort, age_group) %>% 
   mutate(
@@ -743,6 +802,71 @@ mdls_by_cohort %>%
     check_overlap = T,
     data = . %>% filter(cohort %in% seq(1750, 1975, by = 25))
   )
+```
+
+
+# Freshish start
+
+I want to think about this afresh again.
+
+The main thing I want to do are characterise the three components 
+
+1. Infantile
+2. Accident Hump
+3. Senescent
+
+The easiest of these to characterise will be infantile, and the hardest accident. 
+
+```{r chunk}
+
+# Infantile 
+# 
+# infantile_component <- dta_selection %>% 
+#   ungroup() %>% 
+#   filter(age == 0)
+# 
+# accident_component <- dta_selection %>% 
+#   ungroup() %>% 
+#   filter(age >= 10, age <=44)
+# 
+# senescent_component <- dta_selection %>% 
+#   ungroup() %>% 
+#   filter(age >= 55, age <=95)
+
+dta_selection %>% 
+  mutate(death_rate = death_count / population_count) %>% 
+  mutate(lmr = log(death_rate, 10)) %>% 
+  arrange(year, sex, age) %>% 
+  group_by(year, sex) %>% 
+  mutate(
+    lg1 = lag(lmr), 
+    lg2 = lag(lmr, 2), 
+    ld1 = lead(lmr, 1), 
+    ld2 = lead(lmr, 2)
+  ) %>% mutate(
+    sm_lmr = (lmr +  lg1 + lg2 + ld1 + ld2) / 5,
+    ch_sm_lmr = sm_lmr - lag(sm_lmr),
+    ch2_sm_lmr = ch_sm_lmr - lag(ch_sm_lmr)
+  ) %>% 
+  select(year, age, sex, population_count, death_count, lmr, sm_lmr, ch_sm_lmr, ch2_sm_lmr) -> acc_curves
+
+# Now, for each year, find the age with the highest smr 
+
+acc_curves %>% 
+  filter(year %in% seq(1850, 2000, by = 25)) %>% 
+  arrange(year, age) %>% 
+  select(year, age, sex, sm_lmr, ch_sm_lmr, ch2_sm_lmr) %>% 
+  gather(key = "variable", "value", sm_lmr:ch2_sm_lmr) %>% 
+  ggplot(aes(x = age, group = year, colour = factor(year), y = value)) +        
+  facet_grid(variable~sex, scales = "free_y") + 
+  geom_line() + scale_x_continuous(breaks = seq(5, 90, by = 5)) + 
+  geom_hline(yintercept = 0)
+
+
+
+```
+
+I think the approach should be to back-project estimated mortality risk over the age range 5+ years based on mortality rate schedule from age 45-95 inclusive. This is somewhat closer to the approach from Riffe in their accident hump work. 
 
 
 
