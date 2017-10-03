@@ -231,5 +231,85 @@ new_output$optim_runs[[1]]
 
 
 
+# New attempt - run over smoothed data  -----------------------------------
+
+# First attempt: one year lag and lead
+
+dta_selection %>% 
+  mutate(lmr = log(death_count / population_count) ) %>% 
+  group_by(sex, age) %>% 
+  arrange(year) %>% 
+  mutate(lag_lmr = lag(lmr, 1, default = NA)) %>% 
+  mutate(lead_lmr = lead(lmr, 1, default = NA)) %>% 
+  mutate(sm_lmr = case_when(
+    is.na(lag_lmr) ~ (lmr + lead_lmr ) / 2,
+    is.na(lead_lmr) ~ (lmr + lag_lmr) / 2,
+    TRUE ~ (lag_lmr + lmr + lead_lmr) / 3
+    )
+  ) %T>% sample_n(10) %>% 
+  mutate(q_x = exp(sm_lmr)) %>% 
+  group_by(year, sex) %>% 
+  nest() %>% 
+  mutate(q_x = map(data, "q_x")) %>% 
+  mutate(x = map(data, "age")) %>% 
+  mutate(optim_out = map2(q_x, x, run_optim)) %>% 
+  select(year, sex, optim_out) %>% 
+  mutate(rms = map_dbl(optim_out, "value")) %>% 
+  mutate(pars = map(optim_out, function(x) lapply(x[["par"]], exp))) %>% 
+  select(-optim_out) -> tmp 
+
+output <- bind_cols(
+  tmp %>% select(year, sex, rms),
+  pars = bind_rows(tmp$pars)
+)
+
+rm(tmp)
+
+output %>% 
+  gather(key = "param", value = "value", a1:b3) %>% 
+  ggplot(aes(x = year, y = value, colour = sex)) + 
+  facet_wrap(~param, scale = "free_y") + 
+  geom_line()
+
+
+
+# Let's try to think about this graphically and interactively 
+# using the manipulate package. 
+
+# The aim is to fit five parameters such that RMS is minimised
+
+library(manipulate)
+
+estimate_and_plot_log_siler <- function(
+  a1, b1, 
+  a2, 
+  a3, b3
+
+){
+  x <- 0:95
+  
+  prediction <- (a1 - b1 * x) + a2 + (a3 + b3 * x)
+  
+  df <- data_frame(x = x, pred = prediction)
+  
+  df %>% 
+    ggplot(., aes(x = x, y = pred)) + 
+    geom_line() -> p1
+  
+  print(p1)
+}
+
+manipulate(
+  estimate_and_plot_log_siler(a1, b1, a2, a3, b3),
+
+  a1 = slider(0, 100),
+  b1 = slider(0, 100),
+  a2 = slider(0, 20),
+  a3 = slider(-100, 100),
+  b3 = slider(0, 20)
+)
+
+
+
 
 
