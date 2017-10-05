@@ -312,4 +312,52 @@ manipulate(
 
 
 
+# Trigonometric quasi-siler function --------------------------------------
+
+
+# The fundamental idea of the model is to represent mortality change over the life 
+# course with three lines over log-mortality.
+
+# The first line is the infantile schedule, with intercept at x = 0 of A_I
+# and gradient determined by Theta_I
+# The second line is horizontal, with intercept A_R
+# The third line is the senescent schedule, with intercept at x = x_max of A_S
+# and gradient determined by Theta_S
+
+# The model picks the maximum of the three independent functions at each x value 
+
+# Optim searches over five parameters over the full real number plane 
+
+# These are then mapped to appropriate ranges using either exponential or 
+# rescaled logit functions as follows
+
+# A_I = exp(a_i)
+# Theta_I = (pi / 2) * (1 / (1 + exp(-theta_i))) = angler(theta_i)
+# A_R = exp(a_r)
+# A_S = exp(a_s)
+# Theta_S = (pi / 2) * (1 / (1 + exp(-theta_s))) = angler(theta_s)
+
+# The infantile schedule is 
+# f_i = A_I - x / tan(Theta_I)
+
+# The senescent schedule is 
+# f_s = A_S + (x - x_max) / tan(Theta_S)
+
+# And the risk schedule is simply 
+# f_r = A_R 
+
+# The combined function is simply 
+# Quasi_Siler(x) = max(f_i(x), f_r(x), f_s(x))
+
+
+# Parameters PAR := {a_i, theta_i, a_r, a_s, theta_s} 
+# Parameters are selected via optim by minimising product of RMS of fit to data in 
+# year t and sum of squared distances between PAR(t) and PAR(t-1)
+
+# i.e. 
+# loss(PAR) := RMS(PAR, data) * SSQ(PAR, PAR_lag)
+# Where PAR_lag := {a_i(t-1), theta_i(t-1), a_r(t-1), a_s(t-1), theta_s(t-1)}
+
+
+
 
