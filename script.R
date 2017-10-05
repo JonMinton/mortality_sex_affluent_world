@@ -50,7 +50,7 @@ code_selection <- code_to_country_lookup %>%
 dta_selection <- dta %>% 
   filter(country %in% code_selection & sex !="total") %>% 
   group_by(year, age, sex) %>% 
-  summarise(
+  dplyr::summarise(
     population_count = sum(population_count), 
     death_count = sum(death_count)
     ) %>% 

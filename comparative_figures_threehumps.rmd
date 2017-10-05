@@ -817,21 +817,7 @@ The main thing I want to do are characterise the three components
 
 The easiest of these to characterise will be infantile, and the hardest accident. 
 
-```{r chunk}
-
-# Infantile 
-# 
-# infantile_component <- dta_selection %>% 
-#   ungroup() %>% 
-#   filter(age == 0)
-# 
-# accident_component <- dta_selection %>% 
-#   ungroup() %>% 
-#   filter(age >= 10, age <=44)
-# 
-# senescent_component <- dta_selection %>% 
-#   ungroup() %>% 
-#   filter(age >= 55, age <=95)
+```{r look_at_smoothed_change_in_schedule}
 
 dta_selection %>% 
   mutate(death_rate = death_count / population_count) %>% 
@@ -862,13 +848,106 @@ acc_curves %>%
   geom_line() + scale_x_continuous(breaks = seq(5, 90, by = 5)) + 
   geom_hline(yintercept = 0)
 
-
-
 ```
 
 I think the approach should be to back-project estimated mortality risk over the age range 5+ years based on mortality rate schedule from age 45-95 inclusive. This is somewhat closer to the approach from Riffe in their accident hump work. 
 
 
+
+```{r estimate_senescent}
+
+# So, here's some iterations: 
+
+# 1) Simple projection from 45-95 back to age 5 
+# 2) Smoothing from earlier years 
+# 3) Smoothing from neighbouring ages 
+
+calculate_senescent <- function(DTA, MIN_AGE = 45, MAX_AGE = 95){
+  DTA %>% 
+    filter(
+      age >= MIN_AGE,
+      age <= MAX_AGE
+    ) %>% 
+    lm(lmr ~ age, data = .) -> mdl
+  return(mdl)
+}
+
+dta_selection %>% 
+  mutate(death_rate = death_count / population_count) %>% 
+  mutate(lmr = log(death_rate, 10)) %>% 
+  arrange(year, sex, age) %>% 
+  group_by(year, sex) %>% 
+  nest() %>% 
+  mutate(mdl = map(data, calculate_senescent)) %>%
+  mutate(dta_preds = map2(data, mdl, modelr::add_predictions)) %>% 
+  mutate(dta_resids = map2(data, mdl, modelr::add_residuals)) -> mdls
+
+dta_w_preds <- mdls %>% 
+  select(year, sex, dta_preds) %>% 
+  unnest() 
+
+dta_w_res <- mdls %>% 
+  select(year, sex, dta_resids) %>% 
+  unnest()
+
+
+# Now, for each year, find the age with the highest smr 
+
+dta_w_preds %>% 
+  filter(year %in% seq(1850, 2000, by = 25)) %>% 
+  arrange(year, age) %>% 
+  select(year, age, sex, lmr, pred) %>% 
+  gather(key = "variable", "value", lmr:pred) %>% 
+  ggplot(aes(x = age, group = variable, linetype = variable, y = value)) +        
+  facet_grid(year~sex, scales = "free_y") + 
+  geom_line() + scale_x_continuous(limits = c(0, 95), breaks = seq(5, 90, by = 5)) + 
+  geom_hline(yintercept = 0)
+
+```
+
+Now to look at residuals
+
+```{r senescent_residuals}
+dta_w_res %>% 
+  filter(year %in% seq(1850, 2000, by = 25)) %>% 
+  arrange(year, age) %>% 
+  select(year, age, sex, resid) %>% 
+  ggplot(aes(x = age)) +        
+  facet_grid(year~sex, scales = "free_y") + 
+  geom_ribbon(aes(ymin =0 , ymax = resid)) + 
+  scale_x_continuous(limits = c(0, 95), breaks = seq(5, 90, by = 5)) + 
+  geom_hline(yintercept = 0)
+
+
+```
+
+# Residual part 2 
+ 
+At this stage the idea will be to fit the residual to an exponential curve 
+between the ages of 0 and 10
+ 
+```{r infantile_residual}
+calculate_infantile <- function(DTA, MIN_AGE = 0, MAX_AGE = 10){
+  DTA %>%
+    mutate(resid = ifelse(resid < 0, 0.0001, resid)) %>% 
+    filter(age >= MIN_AGE, age <= MAX_AGE) -> dta_tmp
+#  ggplot(dta_tmp, aes(x = age, y = resid)) + geom_point()
+  mod_glm <-  glm(resid ~ age, family = Gamma(), data = dta_tmp) 
+
+  return(mod_glm)
+}
+
+dta_w_res %>% 
+  group_by(year, sex) %>% 
+  nest() %>% 
+  mutate(mdl = map(data, calculate_infantile)) %>%
+  mutate(dta_preds = map2(data, mdl, modelr::add_predictions)) %>% 
+  select(year, sex, dta_preds) %>% 
+  unnest() %>% 
+  mutate(pred = 1 / pred) %>% 
+  mutate(hump = resid - pred) -> hump_after_infantile
+
+```
 
 # Older material ----------------------------------------------------------
 

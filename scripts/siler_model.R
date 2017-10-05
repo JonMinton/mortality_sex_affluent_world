@@ -331,10 +331,10 @@ manipulate(
 # These are then mapped to appropriate ranges using either exponential or 
 # rescaled logit functions as follows
 
-# A_I = exp(a_i)
+# A_I = -exp(a_i)
 # Theta_I = (pi / 2) * (1 / (1 + exp(-theta_i))) = angler(theta_i)
-# A_R = exp(a_r)
-# A_S = exp(a_s)
+# A_R = -exp(a_r)
+# A_S = -exp(a_s)
 # Theta_S = (pi / 2) * (1 / (1 + exp(-theta_s))) = angler(theta_s)
 
 # The infantile schedule is 
@@ -358,6 +358,63 @@ manipulate(
 # loss(PAR) := RMS(PAR, data) * SSQ(PAR, PAR_lag)
 # Where PAR_lag := {a_i(t-1), theta_i(t-1), a_r(t-1), a_s(t-1), theta_s(t-1)}
 
+# First trial 
+pars <- runif(5, -2, 2)
+
+to_angle <- function(x){
+  (pi / 2) * (1 / (1 + exp(-x)))
+}
+
+trans_par <- function(pars){
+  out <- c(
+    -exp(pars[1]),
+    to_angle(pars[2]),
+    -exp(pars[3]),
+    -exp(pars[4]),
+    to_angle(pars[5])
+  )
+  out 
+}
 
 
+xfrmed_pars <- trans_par(pars)
 
+quasi_siler <- function(xfrm_pars, max_age = 95){
+  x <- 0:max_age
+
+  A_I <- xfrm_pars[1]
+  Theta_I <- xfrm_pars[2]
+  
+  A_R <- xfrm_pars[3] 
+  
+  A_S <- xfrm_pars[4]
+  Theta_S <- xfrm_pars[5]
+  
+  schedule_infant <- A_I - x / tan(Theta_I)
+  baseline_risk <- A_R
+  schedule_senescent <- A_S + (x - max_age) / tan(Theta_S)
+
+  out <- pmax(
+    schedule_infant,
+    baseline_risk,
+    schedule_senescent
+  )
+  
+  out
+}
+
+tmp <- quasi_siler(xfrmed_pars)
+
+reps <- 100 
+i <- 1
+while (i  < reps){
+  this_pars <- runif(5, -3, 3)
+  xfrmed_pars <- trans_par(this_pars)
+  
+  this_schedule <- quasi_siler(xfrmed_pars)
+  
+  plot(this_schedule, type = "l")
+  print(this_pars)
+  browser()
+  
+}
