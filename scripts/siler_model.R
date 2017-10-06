@@ -273,42 +273,6 @@ output %>%
 
 
 
-# Let's try to think about this graphically and interactively 
-# using the manipulate package. 
-
-# The aim is to fit five parameters such that RMS is minimised
-
-library(manipulate)
-
-estimate_and_plot_log_siler <- function(
-  a1, b1, 
-  a2, 
-  a3, b3
-
-){
-  x <- 0:95
-  
-  prediction <- (a1 - b1 * x) + a2 + (a3 + b3 * x)
-  
-  df <- data_frame(x = x, pred = prediction)
-  
-  df %>% 
-    ggplot(., aes(x = x, y = pred)) + 
-    geom_line() -> p1
-  
-  print(p1)
-}
-
-manipulate(
-  estimate_and_plot_log_siler(a1, b1, a2, a3, b3),
-
-  a1 = slider(0, 100),
-  b1 = slider(0, 100),
-  a2 = slider(0, 20),
-  a3 = slider(-100, 100),
-  b3 = slider(0, 20)
-)
-
 
 
 
@@ -359,25 +323,39 @@ manipulate(
 # Where PAR_lag := {a_i(t-1), theta_i(t-1), a_r(t-1), a_s(t-1), theta_s(t-1)}
 
 # First trial 
-pars <- runif(5, -2, 2)
+#pars <- runif(5, -2, 2)
 
 to_angle <- function(x){
   (pi / 2) * (1 / (1 + exp(-x)))
 }
 
+from_angle <- function(y){
+  -log(((pi/2) / y) - 1)
+}
+
+# Transform from full real to range 0 to -10 (reasonable mort space range)
+
+to_mortspace <- function(x){
+  -10 * (1 / (1 + exp(-x)))
+}
+
+from_mortspace <- function(y){
+  -log((-10 / y) - 1)
+}
+
 trans_par <- function(pars){
   out <- c(
-    -exp(pars[1]),
+    to_mortspace(pars[1]),
     to_angle(pars[2]),
-    -exp(pars[3]),
-    -exp(pars[4]),
+    to_mortspace(pars[3]),
+    to_mortspace(pars[4]),
     to_angle(pars[5])
   )
   out 
 }
 
 
-xfrmed_pars <- trans_par(pars)
+#xfrmed_pars <- trans_par(pars)
 
 quasi_siler <- function(xfrm_pars, max_age = 95){
   x <- 0:max_age
@@ -403,18 +381,267 @@ quasi_siler <- function(xfrm_pars, max_age = 95){
   out
 }
 
-tmp <- quasi_siler(xfrmed_pars)
+calc_rms <- function(pred_schedule, actual_schedule){
+  (actual_schedule - pred_schedule) %>% 
+    .^2 %>% 
+    mean() %>% 
+    .^0.5
+}
+
+calc_sq_param_shift <- function(old_pars, new_pars){
+  (old_pars - new_pars) %>% 
+    .^2 %>% 
+    sum()
+}
+
+do_siler_rms <- function(pars, observed_schedule){
+  xfrmed_pars <- trans_par(pars)
+  predicted_schedule <- quasi_siler(xfrmed_pars)
+  calc_rms(predicted_schedule, observed_schedule)
+}
+
+mort_schedules_df <- dta_selection %>% 
+  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+  filter(age <= 95) %>% 
+  arrange(sex, year, age) %>% 
+  group_by(sex, year) %>% 
+  nest() %>% 
+  mutate(lmr_schedule = map(data, "lmr")) 
+  
+
+# First year for females 
+
+first_schedule_females <- mort_schedules_df %>% 
+  filter(year == min(year)) %>% 
+  filter(sex == "female") %>% 
+  .[["lmr_schedule"]] %>% .[[1]]
+
+first_schedule_males <- mort_schedules_df %>% 
+  filter(year == min(year)) %>% 
+  filter(sex == "male") %>% 
+  .[["lmr_schedle"]] %>% .[[1]]
+
+female_start_01 <- optim(
+  par = runif(5, -5, 5), 
+  fn = do_siler_rms, 
+  observed_schedule = first_schedule_females,
+  control = list(trace = 1)
+  )
+
+female_start_02 <- optim(
+  par = runif(5, -5, 5), 
+  fn = do_siler_rms, 
+  observed_schedule = first_schedule_females,
+  control = list(trace = 1)
+)
+
+female_start_03 <- optim(
+  par = runif(5, -5, 5), 
+  fn = do_siler_rms, 
+  observed_schedule = first_schedule_females,
+  control = list(trace = 1)
+)
+
+female_start_04 <- optim(
+  par = runif(5, -5, 5), 
+  fn = do_siler_rms, 
+  observed_schedule = first_schedule_females,
+  control = list(trace = 1)
+)
+
+female_start_05 <- optim(
+  par = runif(5, -5, 5), 
+  fn = do_siler_rms, 
+  observed_schedule = first_schedule_females,
+  control = list(trace = 1)
+)
+
+female_fits <- c(
+  female_start_01$value,
+  female_start_02$value,
+  female_start_03$value,
+  female_start_04$value,
+  female_start_05$value
+)
+
+# Pull fit from many runs of optim using replicate
+
+calc_starting_fit <- function(par){
+  optim(
+    par = par,
+    fn = do_siler_rms,
+    observed_schedule = first_schedule_females
+  ) -> tmp
+  c(
+    value = tmp[["value"]],
+    par1 = tmp[["par"]][[1]],
+    par2 = tmp[["par"]][[2]],
+    par3 = tmp[["par"]][[3]],
+    par4 = tmp[["par"]][[4]],
+    par5 = tmp[["par"]][[5]]
+  )
+}
+
+many_runs <- replicate(1000, calc_starting_fit(par = runif(5, -5, 5)))
+
+# reps <- 100 
+# i <- 1
+# while (i  < reps){
+#   this_pars <- runif(5, -5, 5)
+#   xfrmed_pars <- trans_par(this_pars)
+#   
+#   this_schedule <- quasi_siler(xfrmed_pars)
+#   
+#   plot(this_schedule, type = "l")
+#   print(this_pars)
+#   browser()
+#   
+# }
+
+
+
+# Let's look at the empirical schedules to get a sense of plausible ranges of values to 
+# consider 
+
+dta_selection %>% 
+  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+  ggplot(aes(x = age, y = lmr, colour = sex)) +
+  geom_point(alpha = 0.05) + 
+  geom_vline(xintercept = 95) + 
+  geom_vline(xintercept = 10)
+
+# what's the range at age 0, 25, and 95? 
+
+dta_selection %>% 
+  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+  filter(age %in% c(0, 25, 95)) %>% 
+  group_by(age) %>% 
+  summarise(
+    min   = min(lmr),
+    lwr   = quantile(lmr, 0.025),
+    mdlwr = quantile(lmr, 0.25),
+    md    = quantile(lmr, 0.50),
+    mdupr = quantile(lmr, 0.75),
+    upr   = quantile(lmr, 0.975),
+    max   = max(lmr)
+  )
+  
+# Ranges 
+# Infancy 
+# -5.365 to -1.444
+
+# 25 
+# -7.649 to -2.143
+
+# Elderly 
+# -1.424 to -0.629
+
+
+# Now what about the plausible angles?
+
+# Ranges to look over are 0 to 10
+# and 40 to 95 
+
+# First 0 to 10
+
+dta_selection %>% 
+  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+  filter(age <= 10) %>% 
+  group_by(year, sex) %>% 
+  nest() %>% 
+  mutate(mdl = map(data, ~ lm(lmr ~ age, data = .))) %>% 
+  mutate(coef = map(mdl, coefficients)) %>% 
+  mutate(
+    intercept = map_dbl(coef, 1),
+    gradient = map_dbl(coef, 2),
+    angle = atan(1/gradient),
+    angle_deg = (180 / pi) * angle
+    ) %>% 
+  select(year, sex, intercept, gradient, angle, angle_deg) %>% 
+  mutate(type = "infancy") -> angles_infantile
+
+# Now elderly 
+dta_selection %>% 
+  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+  filter(age >= 40 & age <= 95) %>% 
+  group_by(year, sex) %>% 
+  nest() %>% 
+  mutate(mdl = map(data, ~ lm(lmr ~ age, data = .))) %>% 
+  mutate(coef = map(mdl, coefficients)) %>% 
+  mutate(
+    intercept = map_dbl(coef, 1),
+    gradient = map_dbl(coef, 2),
+    angle = atan(1/gradient),
+    angle_deg = (180 / pi) * angle
+  ) %>% 
+  select(year, sex, intercept, gradient, angle, angle_deg) %>% 
+  mutate(type = "elderly") -> angles_elderly
+
+angles_both <- bind_rows(angles_infantile, angles_elderly)
+# Visualise
+
+angles_both %>% 
+  select(year, sex, angle_deg, type) %>% 
+  spread(type, angle_deg) %>% 
+  ggplot(aes(x = infancy, y = elderly, colour = sex)) + 
+  geom_point()
+
+angles_both %>% 
+  select(year, sex, angle_deg, type) %>% 
+  spread(type, angle_deg) %>% 
+  ggplot() +
+  geom_path(aes(x = infancy, y = elderly), data = . %>% filter(sex == "male"), colour = "blue") + 
+  geom_path(aes(x = infancy, y = elderly), data = . %>% filter(sex == "female"), colour = "red")  
+  
+
+
+
+
+
+
+
+# Reasonable range of values 
+
+# Infancy 
+
+# -1.5 to -8.5
+# -log(1.5) ~= -0.41
+# -log(8.5) ~= -2.14
+
+# Adult 
+
+# -2.5 to -8.0
+# -log(2.5) ~= -0.92
+# -log(8.0) ~= -2.08
+
+# Elderly 
+
+# -0.1 to -2.0
+# -log(0.1) ~=  2.30
+# -log(2.0) ~= -0.69
+
+
+# Attempt with these params 
 
 reps <- 100 
 i <- 1
 while (i  < reps){
-  this_pars <- runif(5, -3, 3)
+  this_pars <- c(
+      a_i = runif(1, -2.14, -0.41),
+      theta_i = runif(1, -3, 3),
+      a_r = runif(1, -2.08, -0.92),
+      a_s = runif(1, -0.69, 2.30),
+      theta_s = runif(1, -3, 3)
+    )
+  
   xfrmed_pars <- trans_par(this_pars)
   
   this_schedule <- quasi_siler(xfrmed_pars)
   
   plot(this_schedule, type = "l")
   print(this_pars)
+  print(xfrmed_pars)
   browser()
   
 }
+
