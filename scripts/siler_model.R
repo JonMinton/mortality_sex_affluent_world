@@ -1,5 +1,6 @@
 rm(list = ls())
 
+library(plotly)
 library(tidyverse)
 library(readxl)
 # Aim of this is to try to fit the siler model by hand 
@@ -388,7 +389,7 @@ calc_rms <- function(pred_schedule, actual_schedule){
     .^0.5
 }
 
-calc_sq_param_shift <- function(old_pars, new_pars){
+calc_sq_param_shift <- function(new_pars, old_pars){
   (old_pars - new_pars) %>% 
     .^2 %>% 
     sum()
@@ -398,6 +399,14 @@ do_siler_rms <- function(pars, observed_schedule){
   xfrmed_pars <- trans_par(pars)
   predicted_schedule <- quasi_siler(xfrmed_pars)
   calc_rms(predicted_schedule, observed_schedule)
+}
+
+do_siler_jointloss <- function(pars, observed_schedule, old_pars){
+  xfrmed_pars <- trans_par(pars)
+  predicted_schedule <- quasi_siler(xfrmed_pars)
+  rms <- calc_rms(predicted_schedule, observed_schedule)
+  shift_cost <- calc_sq_param_shift(pars, old_pars)
+  return(rms * shift_cost)
 }
 
 mort_schedules_df <- dta_selection %>% 
@@ -416,61 +425,21 @@ first_schedule_females <- mort_schedules_df %>%
   filter(sex == "female") %>% 
   .[["lmr_schedule"]] %>% .[[1]]
 
+#First year for males
+
 first_schedule_males <- mort_schedules_df %>% 
   filter(year == min(year)) %>% 
   filter(sex == "male") %>% 
-  .[["lmr_schedle"]] %>% .[[1]]
+  .[["lmr_schedule"]] %>% .[[1]]
 
-female_start_01 <- optim(
-  par = runif(5, -5, 5), 
-  fn = do_siler_rms, 
-  observed_schedule = first_schedule_females,
-  control = list(trace = 1)
-  )
-
-female_start_02 <- optim(
-  par = runif(5, -5, 5), 
-  fn = do_siler_rms, 
-  observed_schedule = first_schedule_females,
-  control = list(trace = 1)
-)
-
-female_start_03 <- optim(
-  par = runif(5, -5, 5), 
-  fn = do_siler_rms, 
-  observed_schedule = first_schedule_females,
-  control = list(trace = 1)
-)
-
-female_start_04 <- optim(
-  par = runif(5, -5, 5), 
-  fn = do_siler_rms, 
-  observed_schedule = first_schedule_females,
-  control = list(trace = 1)
-)
-
-female_start_05 <- optim(
-  par = runif(5, -5, 5), 
-  fn = do_siler_rms, 
-  observed_schedule = first_schedule_females,
-  control = list(trace = 1)
-)
-
-female_fits <- c(
-  female_start_01$value,
-  female_start_02$value,
-  female_start_03$value,
-  female_start_04$value,
-  female_start_05$value
-)
 
 # Pull fit from many runs of optim using replicate
 
-calc_starting_fit <- function(par){
+calc_starting_fit <- function(par, starting_schedule){
   optim(
     par = par,
     fn = do_siler_rms,
-    observed_schedule = first_schedule_females
+    observed_schedule = starting_schedule
   ) -> tmp
   c(
     value = tmp[["value"]],
@@ -482,166 +451,251 @@ calc_starting_fit <- function(par){
   )
 }
 
-many_runs <- replicate(1000, calc_starting_fit(par = runif(5, -5, 5)))
+num_initial_replicates <- 10000
 
-# reps <- 100 
-# i <- 1
-# while (i  < reps){
-#   this_pars <- runif(5, -5, 5)
-#   xfrmed_pars <- trans_par(this_pars)
-#   
-#   this_schedule <- quasi_siler(xfrmed_pars)
-#   
-#   plot(this_schedule, type = "l")
-#   print(this_pars)
-#   browser()
-#   
-# }
-
-
-
-# Let's look at the empirical schedules to get a sense of plausible ranges of values to 
-# consider 
-
-dta_selection %>% 
-  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
-  ggplot(aes(x = age, y = lmr, colour = sex)) +
-  geom_point(alpha = 0.05) + 
-  geom_vline(xintercept = 95) + 
-  geom_vline(xintercept = 10)
-
-# what's the range at age 0, 25, and 95? 
-
-dta_selection %>% 
-  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
-  filter(age %in% c(0, 25, 95)) %>% 
-  group_by(age) %>% 
-  summarise(
-    min   = min(lmr),
-    lwr   = quantile(lmr, 0.025),
-    mdlwr = quantile(lmr, 0.25),
-    md    = quantile(lmr, 0.50),
-    mdupr = quantile(lmr, 0.75),
-    upr   = quantile(lmr, 0.975),
-    max   = max(lmr)
+set.seed(5)
+many_runs_female <- replicate(
+  num_initial_replicates, 
+  calc_starting_fit(par = runif(5, -8, 8), starting_schedule = first_schedule_females)
   )
+
+set.seed(5)
+many_runs_male <- replicate(
+  num_initial_replicates, 
+  calc_starting_fit(par = runif(5, -8, 8), starting_schedule = first_schedule_males)
+)
+
+
+#install.packages("plotly")
+
+tidy_runs <- many_runs_female %>% 
+  t %>% 
+  as_tibble %>% 
+  mutate(sex = "female") %>% 
+  bind_rows(
+    many_runs_male %>% 
+      t %>% 
+      as_tibble %>% 
+      mutate(sex = "male")
+  ) 
+
+tidy_runs %>%
+  mutate(is_male = as.numeric(sex =='male')) %>% 
+  plotly::plot_ly(type = 'parcoords',
+#           color = ~sex, colors = "Set1",
+#          linetype = ~sex,
+          line = list(color = ~is_male,
+                      colors = "Set1"),
+          dimensions = list(
+            list(
+                 label = 'Fit', values = ~value),
+            list(range = c(-8, 8),
+                 label = 'Infant Intercept', values = ~par1),
+            list(range = c(-8, 8),
+#                 constraintrange = c(5,6),
+                 label = 'Infant Angle', values = ~par2),
+            list(range = c(-8, 8),
+                 label = 'Background Intercept', values = ~par3),
+            list(range = c(-8, 8),
+                 label = 'Senescent Intercept', values = ~par4),
+            list(range = c(-8, 8),
+              label = 'Senescent Angle', values = ~par5)
+            
+          )
+  )
+
+# This plot provides some confidence that the best fitting models are finding reasonably similar 
+# estimates for each of the parameters, and also that the range -5 to 5 should not constrain values too severely 
+# within this range 
+# Maybe use -6 to 6 to be safe? 
+
+# The next stage will feed the estimates from the previous year into the next year's estimates
+
+# It will start with the best estimates for each sex from the first year
+
+
+
+# Now to pick the best fits by gender 
+
+tidy_runs %>% 
+  group_by(sex) %>% 
+  filter(value == min(value))
+
+# # A tibble: 2 x 7
+# # Groups:   sex [2]
+# value      par1      par2        par3      par4     par5    sex
+# <dbl>     <dbl>     <dbl>       <dbl>     <dbl>    <dbl>  <chr>
+#   1 0.1834397 -1.223117 0.9318067 -0.07897006 -2.260888 3.036875 female
+# 2 0.2025954 -1.294752 0.8536778 -0.04156170 -2.322711 3.075348   male
+
+best_init_pars_female <- tidy_runs %>% 
+  filter(sex == "female") %>% 
+  filter(value == min(value)) %>% 
+  select(par1:par5) %>% 
+  gather() %>% 
+  deframe()
+
+best_init_pars_male <- tidy_runs %>% 
+  filter(sex == "male") %>% 
+  filter(value == min(value)) %>% 
+  select(par1:par5) %>% 
+  gather() %>% 
+  deframe()
+
+# n.b. may need to convert to list before passing to optim
+
+mort_schedules_df_female <- mort_schedules_df %>% filter(sex == "female")
+mort_schedules_df_male <-   mort_schedules_df %>% filter(sex == "male")
+
+pars_female <- vector("list", length = nrow(mort_schedules_df_female))
+pars_male <- vector("list", length = nrow(mort_schedules_df_male))
+
+pars_female[[1]] <- best_init_pars_female$par
+pars_male[[1]] <- best_init_pars_male$par
+
+for (i in 2:nrow(mort_schedules_df_female)){
+  lag_par_female <- pars_female[[i-1]]
+  lag_par_male <- pars_male[[i-1]]
   
-# Ranges 
-# Infancy 
-# -5.365 to -1.444
-
-# 25 
-# -7.649 to -2.143
-
-# Elderly 
-# -1.424 to -0.629
-
-
-# Now what about the plausible angles?
-
-# Ranges to look over are 0 to 10
-# and 40 to 95 
-
-# First 0 to 10
-
-dta_selection %>% 
-  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
-  filter(age <= 10) %>% 
-  group_by(year, sex) %>% 
-  nest() %>% 
-  mutate(mdl = map(data, ~ lm(lmr ~ age, data = .))) %>% 
-  mutate(coef = map(mdl, coefficients)) %>% 
-  mutate(
-    intercept = map_dbl(coef, 1),
-    gradient = map_dbl(coef, 2),
-    angle = atan(1/gradient),
-    angle_deg = (180 / pi) * angle
-    ) %>% 
-  select(year, sex, intercept, gradient, angle, angle_deg) %>% 
-  mutate(type = "infancy") -> angles_infantile
-
-# Now elderly 
-dta_selection %>% 
-  mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
-  filter(age >= 40 & age <= 95) %>% 
-  group_by(year, sex) %>% 
-  nest() %>% 
-  mutate(mdl = map(data, ~ lm(lmr ~ age, data = .))) %>% 
-  mutate(coef = map(mdl, coefficients)) %>% 
-  mutate(
-    intercept = map_dbl(coef, 1),
-    gradient = map_dbl(coef, 2),
-    angle = atan(1/gradient),
-    angle_deg = (180 / pi) * angle
-  ) %>% 
-  select(year, sex, intercept, gradient, angle, angle_deg) %>% 
-  mutate(type = "elderly") -> angles_elderly
-
-angles_both <- bind_rows(angles_infantile, angles_elderly)
-# Visualise
-
-angles_both %>% 
-  select(year, sex, angle_deg, type) %>% 
-  spread(type, angle_deg) %>% 
-  ggplot(aes(x = infancy, y = elderly, colour = sex)) + 
-  geom_point()
-
-angles_both %>% 
-  select(year, sex, angle_deg, type) %>% 
-  spread(type, angle_deg) %>% 
-  ggplot() +
-  geom_path(aes(x = infancy, y = elderly), data = . %>% filter(sex == "male"), colour = "blue") + 
-  geom_path(aes(x = infancy, y = elderly), data = . %>% filter(sex == "female"), colour = "red")  
+  this_mort_schedule_male   <-  mort_schedules_df_male[["lmr_schedule"]][[i]]
+  this_mort_schedule_female <-  mort_schedules_df_female[["lmr_schedule"]][[i]]
   
+  pars_female[[i]] <- optim(
+    par = runif(5, -6, 6), 
+    do_siler_jointloss,
+    observed_schedule = this_mort_schedule_female,
+    old_pars = lag_par_female
+    )$par
 
-
-
-
-
-
-
-# Reasonable range of values 
-
-# Infancy 
-
-# -1.5 to -8.5
-# -log(1.5) ~= -0.41
-# -log(8.5) ~= -2.14
-
-# Adult 
-
-# -2.5 to -8.0
-# -log(2.5) ~= -0.92
-# -log(8.0) ~= -2.08
-
-# Elderly 
-
-# -0.1 to -2.0
-# -log(0.1) ~=  2.30
-# -log(2.0) ~= -0.69
-
-
-# Attempt with these params 
-
-reps <- 100 
-i <- 1
-while (i  < reps){
-  this_pars <- c(
-      a_i = runif(1, -2.14, -0.41),
-      theta_i = runif(1, -3, 3),
-      a_r = runif(1, -2.08, -0.92),
-      a_s = runif(1, -0.69, 2.30),
-      theta_s = runif(1, -3, 3)
-    )
-  
-  xfrmed_pars <- trans_par(this_pars)
-  
-  this_schedule <- quasi_siler(xfrmed_pars)
-  
-  plot(this_schedule, type = "l")
-  print(this_pars)
-  print(xfrmed_pars)
-  browser()
+  pars_male[[i]] <- optim(
+    par = runif(5, -6, 6), 
+    do_siler_jointloss,
+    observed_schedule = this_mort_schedule_male,
+    old_pars = lag_par_male
+  )$par
   
 }
 
+
+# Example from website
+#https://plot.ly/r/parallel-coordinates-plot/
+# df <- read.csv("https://raw.githubusercontent.com/bcdunbar/datasets/master/iris.csv")
+# df %>%
+#   plot_ly(type = 'parcoords',
+#           line = list(color = ~species_id,
+#                       colorscale = list(c(0,'red'),c(0.5,'green'),c(1,'blue'))),
+#           dimensions = list(
+#             list(range = c(2,4.5),
+#                  label = 'Sepal Width', values = ~sepal_width),
+#             list(range = c(4,8),
+#                  constraintrange = c(5,6),
+#                  label = 'Sepal Length', values = ~sepal_length),
+#             list(range = c(0,2.5),
+#                  label = 'Petal Width', values = ~petal_width),
+#             list(range = c(1,7),
+#                  label = 'Petal Length', values = ~petal_length)
+#           )
+#   )
+# 
+
+
+
+
+# 
+# 
+# # Let's look at the empirical schedules to get a sense of plausible ranges of values to 
+# # consider 
+# 
+# dta_selection %>% 
+#   mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+#   ggplot(aes(x = age, y = lmr, colour = sex)) +
+#   geom_point(alpha = 0.05) + 
+#   geom_vline(xintercept = 95) + 
+#   geom_vline(xintercept = 10)
+# 
+# # what's the range at age 0, 25, and 95? 
+# 
+# dta_selection %>% 
+#   mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+#   filter(age %in% c(0, 25, 95)) %>% 
+#   group_by(age) %>% 
+#   summarise(
+#     min   = min(lmr),
+#     lwr   = quantile(lmr, 0.025),
+#     mdlwr = quantile(lmr, 0.25),
+#     md    = quantile(lmr, 0.50),
+#     mdupr = quantile(lmr, 0.75),
+#     upr   = quantile(lmr, 0.975),
+#     max   = max(lmr)
+#   )
+#   
+# # Ranges 
+# # Infancy 
+# # -5.365 to -1.444
+# 
+# # 25 
+# # -7.649 to -2.143
+# 
+# # Elderly 
+# # -1.424 to -0.629
+# 
+# 
+# # Now what about the plausible angles?
+# 
+# # Ranges to look over are 0 to 10
+# # and 40 to 95 
+# 
+# # First 0 to 10
+# 
+# dta_selection %>% 
+#   mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+#   filter(age <= 10) %>% 
+#   group_by(year, sex) %>% 
+#   nest() %>% 
+#   mutate(mdl = map(data, ~ lm(lmr ~ age, data = .))) %>% 
+#   mutate(coef = map(mdl, coefficients)) %>% 
+#   mutate(
+#     intercept = map_dbl(coef, 1),
+#     gradient = map_dbl(coef, 2),
+#     angle = atan(1/gradient),
+#     angle_deg = (180 / pi) * angle
+#     ) %>% 
+#   select(year, sex, intercept, gradient, angle, angle_deg) %>% 
+#   mutate(type = "infancy") -> angles_infantile
+# 
+# # Now elderly 
+# dta_selection %>% 
+#   mutate(lmr = ((death_count + 0.5) / (population_count + 0.5)) %>% log) %>% 
+#   filter(age >= 40 & age <= 95) %>% 
+#   group_by(year, sex) %>% 
+#   nest() %>% 
+#   mutate(mdl = map(data, ~ lm(lmr ~ age, data = .))) %>% 
+#   mutate(coef = map(mdl, coefficients)) %>% 
+#   mutate(
+#     intercept = map_dbl(coef, 1),
+#     gradient = map_dbl(coef, 2),
+#     angle = atan(1/gradient),
+#     angle_deg = (180 / pi) * angle
+#   ) %>% 
+#   select(year, sex, intercept, gradient, angle, angle_deg) %>% 
+#   mutate(type = "elderly") -> angles_elderly
+# 
+# angles_both <- bind_rows(angles_infantile, angles_elderly)
+# # Visualise
+# 
+# angles_both %>% 
+#   select(year, sex, angle_deg, type) %>% 
+#   spread(type, angle_deg) %>% 
+#   ggplot(aes(x = infancy, y = elderly, colour = sex)) + 
+#   geom_point()
+# 
+# angles_both %>% 
+#   select(year, sex, angle_deg, type) %>% 
+#   spread(type, angle_deg) %>% 
+#   ggplot() +
+#   geom_path(aes(x = infancy, y = elderly), data = . %>% filter(sex == "male"), colour = "blue") + 
+#   geom_path(aes(x = infancy, y = elderly), data = . %>% filter(sex == "female"), colour = "red")  
+#   
+# 
+# 
+# 
