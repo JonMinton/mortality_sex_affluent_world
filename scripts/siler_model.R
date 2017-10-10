@@ -440,7 +440,7 @@ for (i in 2:nrow(mort_schedules_df_female)){
     num_later_replicates, 
     {
       optim(
-        par = lag_par_male + runif(5, -3, 3),
+        par = lag_par_male + runif(5, -4, 4),
         do_siler_rms,
         observed_schedule = this_mort_schedule_male
       ) -> tmp
@@ -461,7 +461,7 @@ for (i in 2:nrow(mort_schedules_df_female)){
     num_later_replicates, 
     {
       optim(
-        par = lag_par_female + runif(5, -3, 3),
+        par = lag_par_female + runif(5, -4, 4),
         do_siler_rms,
         observed_schedule = this_mort_schedule_female
       ) -> tmp
