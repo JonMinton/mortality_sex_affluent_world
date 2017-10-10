@@ -560,6 +560,11 @@ for (i in 2:nrow(mort_schedules_df_female)){
   this_mort_schedule_male   <-  mort_schedules_df_male[["lmr_schedule"]][[i]]
   this_mort_schedule_female <-  mort_schedules_df_female[["lmr_schedule"]][[i]]
   
+  many_runs_male <- replicate(
+    num_initial_replicates, 
+    calc_starting_fit(par = runif(5, -8, 8), starting_schedule = first_schedule_males)
+  )
+  
   pars_female[[i]] <- optim(
     par = runif(5, -6, 6), 
     do_siler_jointloss,
