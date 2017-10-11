@@ -548,7 +548,40 @@ pars_df %>%
   geom_line() + facet_wrap(~param, scale = "free_y")
 
 
+# Write out the params
 
+pars_df
+
+pars_df %>% 
+  mutate(
+    infant_intercept = to_mortspace(par1),
+    infant_angle = to_angle(par2),
+    baseline_risk = to_mortspace(par3),
+    senescent_intercept = to_mortspace(par4),
+    senescent_angle = to_angle(par5)
+  ) %>% 
+  mutate(
+    infant_gradient = atan(infant_angle),
+    senescent_gradient = atan((pi / 2) - senescent_angle)
+  ) %>% 
+  select(-infant_angle, -senescent_angle) %>% 
+  select(sex:senescent_gradient) %>% 
+  gather(infant_intercept:senescent_gradient, key = "param", value = "value") %>% 
+  mutate(param = factor(
+    param, 
+    levels = c(
+      "infant_intercept", "infant_gradient", 
+      "baseline_risk", 
+      "senescent_intercept", "senescent_gradient"
+    ),
+    ordered = T
+  )
+  ) %>% 
+  ggplot(aes(x = year, y = value, colour = sex)) + 
+  geom_line() + facet_wrap(~param, scale = "free_y")
+
+
+write_csv(pars_df, "data/quasi_siler_best_estimates.csv")
 # 
 # 
 # # Let's look at the empirical schedules to get a sense of plausible ranges of values to 
