@@ -33,7 +33,7 @@ dta_selection <- dta %>%
     population_count = sum(population_count), 
     death_count = sum(death_count)
   ) %>% 
-  filter(year >= 1850 & year <=2010)
+  filter(year >= 1850 )
 
 
 # Trigonometric quasi-siler function --------------------------------------
@@ -211,7 +211,7 @@ calc_starting_fit <- function(par, starting_schedule){
 }
 
 num_initial_replicates <- 10000
-num_later_replicates <- 1000
+num_later_replicates <- 10000
 
 
 set.seed(5)
@@ -509,11 +509,11 @@ for (i in 2:nrow(mort_schedules_df_female)){
 
 pars_df <- do.call(bind_rows, pars_female) %>% 
   mutate(sex = "female") %>% 
-  mutate(year = 1850:2010) %>% 
+  mutate(year = 1850 + 0:162) %>% 
   bind_rows(
     do.call(bind_rows, pars_male) %>% 
       mutate(sex = "male") %>% 
-      mutate(year = 1850:2010)
+      mutate(year = 1850 + 0:162)
   )
 
 pars_df %>% 
