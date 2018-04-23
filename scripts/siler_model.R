@@ -580,7 +580,7 @@ pars_df %>%
   ggplot(aes(x = year, y = value, colour = sex)) + 
   geom_line() + facet_wrap(~param, scale = "free_y")
 
-
+ggsave("figures/siler_best_to_2010.png", dpi = 300, units = "cm", height = 20, width = 20)
 write_csv(pars_df, "data/quasi_siler_best_estimates.csv")
 # 
 # 
